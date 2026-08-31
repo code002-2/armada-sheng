@@ -1,0 +1,104 @@
+# Armada runtime fragment merged on top of ianchb/sm8550-mainline's sheng
+# board config (sm8550.config) by kernel-sheng/build.sh.
+#
+# Only symbols the sheng config already defines are merged (the build script
+# filters the rest), so adding an option here never breaks the merge.
+#
+# Everything in this fragment is required for Armada's runtime that the
+# vanilla sheng board config is known not to enable; features the sheng config
+# already turns on (DRM_MSM=y, GOODIX BERLIN, UFS, ath12k, ...) are not
+# repeated here.
+
+# ============== Armada runtime (game stack + FEX) ==============
+CONFIG_BINFMT_MISC=m                    # FEX x86 translation registration
+CONFIG_OVERLAY_FS=m
+CONFIG_EROFS_FS=m                       # squashfs/fuse payloads
+CONFIG_EROFS_FS_BACKED_BY_FILE=y
+CONFIG_EXFAT_FS=m
+CONFIG_NTFS3_FS=m
+CONFIG_CIFS=m
+CONFIG_NLS_UTF8=y
+CONFIG_SQUASHFS_ZSTD=y
+CONFIG_BTRFS_FS=m                       # bootc root default
+
+# ============== bootc / ostree / systemd ==============
+CONFIG_FANOTIFY=y                       # ostree file-change tracking
+CONFIG_USER_NS=y
+CONFIG_PID_NS=y
+CONFIG_NET_NS=y
+CONFIG_SECURITY=y
+CONFIG_SECURITY_NETWORK=y               # hard dep of SECURITY_SELINUX
+CONFIG_SECURITY_SELINUX=y
+CONFIG_BPF_SYSCALL=y
+CONFIG_CGROUP_BPF=y
+CONFIG_SYSFB_SIMPLEFB=y
+CONFIG_FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER=y
+CONFIG_RD_ZSTD=y
+
+# ============== Waydroid ==============
+CONFIG_ANDROID_BINDER_IPC=y
+CONFIG_ANDROID_BINDERFS=y
+CONFIG_PSI=y                             # lmkd memory-pressure monitoring
+CONFIG_PSI_DEFAULT_DISABLED=y            # opt in with psi=1
+CONFIG_IPV6=y
+CONFIG_IPV6_MULTIPLE_TABLES=y
+CONFIG_XFRM_USER=y
+
+# ============== Gaming performance ==============
+CONFIG_SCHED_CLASS_EXT=y                 # sched_ext, scx_lavd/cosmos
+CONFIG_UCLAMP_TASK=y                     # armada-powerd cpu.uclamp.min per game
+CONFIG_UCLAMP_TASK_GROUP=y
+CONFIG_NTSYNC=y                          # Proton NT sync; off in most arm64 configs
+CONFIG_LRU_GEN=y
+CONFIG_LRU_GEN_ENABLED=y
+CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=y    # not ALWAYS, which bloats FEX RAM
+
+# ============== HID / gamepads (external controllers on a tablet) ==============
+CONFIG_INPUT_UINPUT=y
+CONFIG_HIDRAW=y
+CONFIG_UHID=y
+CONFIG_HID_MICROSOFT=y
+CONFIG_HID_STEAM=m
+CONFIG_HID_PLAYSTATION=m
+CONFIG_HID_SONY=m
+CONFIG_HID_NINTENDO=m
+CONFIG_JOYSTICK_XPAD=m
+CONFIG_JOYSTICK_XPAD_FF=y
+CONFIG_JOYSTICK_XPAD_LEDS=y
+
+# ============== Compressed firmware (Fedora/RPM qcom fw is .xz-only) ==============
+CONFIG_FW_LOADER_COMPRESS=y
+CONFIG_FW_LOADER_COMPRESS_XZ=y
+CONFIG_FW_LOADER_COMPRESS_ZSTD=y
+
+# ============== ZRAM ==============
+CONFIG_ZSMALLOC=m
+CONFIG_ZRAM=m
+CONFIG_ZRAM_BACKEND_ZSTD=y
+CONFIG_ZRAM_BACKEND_LZ4=y
+CONFIG_ZRAM_BACKEND_LZO=y
+CONFIG_ZRAM_DEF_COMP_ZSTD=y
+CONFIG_ZRAM_DEF_COMP="zstd"
+CONFIG_CRYPTO_ZSTD=y
+
+# ============== netfilter / nftables (firewalld, Tailscale, WireGuard) ==============
+CONFIG_NF_CONNTRACK=m
+CONFIG_NF_NAT=m
+CONFIG_NETFILTER_XTABLES=m
+CONFIG_NF_TABLES=m
+CONFIG_NF_TABLES_INET=y
+CONFIG_NFT_CT=m
+CONFIG_NFT_NAT=m
+CONFIG_NFT_MASQ=m
+CONFIG_NFT_REDIR=m
+CONFIG_NFT_REJECT=m
+CONFIG_NFT_REJECT_INET=m
+CONFIG_NFT_COMPAT=m
+CONFIG_NFT_LIMIT=m
+CONFIG_NFT_LOG=m
+CONFIG_NETFILTER_XT_TARGET_MASQUERADE=m
+CONFIG_NETFILTER_XT_MATCH_COMMENT=m
+CONFIG_NETFILTER_XT_MATCH_MARK=m
+CONFIG_IP_ADVANCED_ROUTER=y
+CONFIG_IP_MULTIPLE_TABLES=y
+CONFIG_WIREGUARD=m

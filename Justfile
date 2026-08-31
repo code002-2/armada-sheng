@@ -316,6 +316,46 @@ spawn-vm rebuild="0" type="qcow2" ram="6G":
       --vsock=false --pass-ssh-key=false \
       -i ./output/**/*.{{ type }}
 
+# ===========================================================================
+# Sheng (Xiaomi Pad 6S Pro) — internal-storage / fastboot flashable images
+# ===========================================================================
+# The sheng kernel comes straight from ianchb/sm8550-mainline (sheng-7.2.2),
+# packaged exactly like armada-packages' kernel tarball, consumed via the
+# KERNEL_PKG build arg. Produce the kernel image locally with:
+#   just build-sheng-kernel            # -> localhost/armada-sheng-kernel:7.2.2
+# Then:
+#   just build-sheng-flashable localhost/armada-sheng-kernel:7.2.2
+# or run .github/workflows/build-sheng-disk.yml end-to-end.
+
+[group('Build Sheng (Xiaomi Pad 6S Pro)')]
+build-sheng-kernel $tag="7.2.2":
+    #!/usr/bin/env bash
+    set -euxo pipefail
+    rm -rf kernel-sheng/out
+    ./kernel-sheng/build.sh "$(pwd)/kernel-sheng/out"
+    podman build --platform linux/arm64 -t localhost/armada-sheng-kernel:{{ tag }} kernel-sheng
+
+[group('Build Sheng (Xiaomi Pad 6S Pro)')]
+build-sheng-image $kernel_pkg $target_image=image_name $tag=default_tag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ARMADA_VERSION="$(TZ=America/New_York date +%Y%m%d).$(git rev-parse --short HEAD)"
+    podman build \
+        --build-arg ARMADA_VERSION="${ARMADA_VERSION}" \
+        --build-arg KERNEL_PKG="{{ kernel_pkg }}" \
+        --platform linux/arm64 \
+        --pull=newer \
+        --target armada-rootfs \
+        --tag "{{ target_image }}:{{ tag }}" \
+        .
+
+[group('Build Sheng (Xiaomi Pad 6S Pro)')]
+export-fastboot-images $device="sm8550-xiaomi-sheng" $raw="output/image/disk.raw" $out="output/fastboot":
+    ./post_process/export-fastboot-images.sh --device {{ device }} --raw {{ raw }} --out {{ out }}
+
+[group('Build Sheng (Xiaomi Pad 6S Pro)')]
+build-sheng-flashable $kernel_pkg $tag=default_tag: (build-sheng-image kernel_pkg ("localhost/" + image_name) tag) && (_build-bib ("localhost/" + image_name) tag "raw" "disk_config/disk-sheng.toml") && (export-fastboot-images "sm8550-xiaomi-sheng" "output/image/disk.raw" "output/fastboot")
+
 lint:
     #!/usr/bin/env bash
     set -eoux pipefail

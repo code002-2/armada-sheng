@@ -83,6 +83,16 @@ $ just build   # Build the local bootc container image
 $ just --list  # Show disk-image, VM, and other development recipes
 ```
 
+### Xiaomi Pad 6S Pro (sheng) — internal-storage images
+
+The sheng variant boots from the Android partitions with the vendor ABL
+(kernel from [ianchb/sm8550-mainline](https://github.com/ianchb/sm8550-mainline)
+@ `sheng-7.2.2`, fastboot-flashable `boot_b.img` / `linux_boot.img` /
+`linux.img`). Build end-to-end with the
+[`build-sheng-disk.yml`](.github/workflows/build-sheng-disk.yml) workflow, or
+locally with `just build-sheng-kernel` + `just build-sheng-flashable`.
+See [docs/flashing-xiaomi-sheng.md](docs/flashing-xiaomi-sheng.md).
+
 Issues and pull requests are welcome. For installation or device support, check
 the [troubleshooting documentation](https://armadaos.dev/troubleshooting/frequently-asked-questions/)
 or ask in the [Armada Discord community](https://discord.gg/HdmdSxTD5S).
