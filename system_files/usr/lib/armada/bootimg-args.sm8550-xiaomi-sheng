@@ -1,0 +1,7 @@
+# Vendor-ABL geometry for the original Xiaomi bootloader (sheng),
+# identical to the mkbootimg arguments debian-sheng uses: base 0x0,
+# header-v0, 4096-byte pages. A mismatch ships an unbootable boot_b image.
+ARMADA_BOOTIMG_ARGS="--base 0x00000000 --pagesize 4096 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --header_version 0"
+
+# header-v0 extra_cmdline is 1024 bytes but the ABL may not read overflow.
+ARMADA_CMDLINE_MAX=512

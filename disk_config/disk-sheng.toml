@@ -1,0 +1,8 @@
+# Disk layout for the internal-storage (fastboot) exports — the sheng variant.
+# The BIB raw image keeps the standard ARMADA layout (ESP + /boot + btrfs /);
+# post_process/export-fastboot-images.sh then splits it into per-partition
+# images. The root only needs enough room for one staged bootc upgrade: on
+# flash, the btrfs rootf is grown to its partition (x-systemd.growfs).
+[[customizations.filesystem]]
+mountpoint = "/"
+minsize = "12 GiB"

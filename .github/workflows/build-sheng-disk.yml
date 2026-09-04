@@ -1,0 +1,376 @@
+---
+# End-to-end sheng (Xiaomi Pad 6S Pro) flashable-image pipeline.
+#
+# Unlike build-disk.yml (SD-card image from the published container), this
+# workflow builds the full chain in one go because the sheng variant carries a
+# DIFFERENT kernel (ianchb/sm8550-mainline @ sheng-7.2.2, not armada-packages):
+#
+#   1. build kernel from ianchb/sm8550-mainline (sheng-7.2.2)
+#      -> OCI image shaped exactly like armada-packages' kernel stage
+#      -> ghcr.io/<owner>/armada-sheng-kernel:<date>-<sha>
+#   2. build Armada rootfs with KERNEL_PKG=<that image> (Containerfile unchanged)
+#      -> ghcr.io/<owner>/armada:sheng-<date>-<sha>   (OTA source)
+#   3. BIB raw -> post_process/export-fastboot-images.sh
+#      -> boot_b.img / linux_boot.img / linux.img + flash.sh (artifacts)
+#
+# The container images are pushed WITHOUT cosign signing (experimental
+# channel); the flashable artifacts are signed only by their SHA256SUMS.
+name: Build sheng flashable images
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_repo:
+        description: "sheng kernel repository"
+        type: string
+        default: https://github.com/ianchb/sm8550-mainline
+      kernel_branch:
+        description: "sheng kernel branch (the sheng board support lives here)"
+        type: string
+        default: sheng-7.2.2
+      kernel_config:
+        description: "sheng board config file inside this repo (kernel-sheng/)"
+        type: string
+        default: sm8550.config
+      boot_mode:
+        description: |
+          Root partition binding:
+          - dual: bind to your own linux partition (e.g. the debian-sheng
+            partition — /dev/sda30 on a stock sheng; Android kept)
+          - single: bind to the vendor 'userdata' partition (sda29; Android
+            erased)
+        type: choice
+        options:
+          - dual
+          - single
+        default: dual
+      root_partition_name:
+        description: "GPT partition name for the dual-boot root (used only when boot_mode=dual; fstab binds by UUID so only fastboot flash <name> must match)."
+        type: string
+        default: "linux"
+      debug_kargs:
+        description: "Diagnostic boot: disable splash + verbose console logs (for troubleshooting a hang at 'Preparing Armada')."
+        type: boolean
+        default: false
+
+env:
+  IMAGE_NAME: "${{ github.event.repository.name }}"
+  IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
+  BIB_IMAGE: "quay.io/centos-bootc/bootc-image-builder:latest"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  kernel:
+    name: Build sheng kernel (ianchb/sm8550-mainline)
+    runs-on: ubuntu-24.04-arm
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      # step-level GITHUB_OUTPUT is scoped to the job; expose it here so
+      # the flashable job can use it as the KERNEL_PKG build arg.
+      kernel_ref: ${{ steps.kernel.outputs.kernel_ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install build tools
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ccache jq git curl zstd buildah skopeo
+
+      - name: Restore ccache
+        uses: actions/cache@v6
+        with:
+          path: /home/runner/.ccache
+          key: sheng-kernel-${{ inputs.kernel_branch }}-${{ github.run_id }}
+          restore-keys: sheng-kernel-${{ inputs.kernel_branch }}-
+
+      - name: Select kernel source
+        run: |
+          set -euxo pipefail
+          sed -i "s|^KERNEL_REPO=.*|KERNEL_REPO=${{ inputs.kernel_repo }}|" kernel-sheng/BUILD.env
+          sed -i "s|^KERNEL_BRANCH=.*|KERNEL_BRANCH=${{ inputs.kernel_branch }}|" kernel-sheng/BUILD.env
+          sed -i "s|^KERNEL_CONFIG=.*|KERNEL_CONFIG=${{ inputs.kernel_config }}|" kernel-sheng/BUILD.env
+
+      - name: Build kernel
+        run: |
+          set -euxo pipefail
+          export CCACHE_DIR=/home/runner/.ccache
+          export PATH="/usr/lib/ccache:$PATH"
+          ./kernel-sheng/build.sh "$PWD/kernel-sheng/out"
+
+      - name: Push kernel image
+        id: kernel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          IMAGE="${IMAGE_REGISTRY}/armada-sheng-kernel"
+          TAG="$(TZ=America/New_York date +%Y%m%d)-$(git rev-parse --short HEAD)"
+          sudo buildah bud --platform linux/arm64 -t "${IMAGE}:${TAG}" kernel-sheng/
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+          # buildah push (not skopeo copy): skopeo cannot read the buildah
+          # containers/storage image store via docker://.
+          sudo buildah push "${IMAGE}:${TAG}" "docker://${IMAGE}:${TAG}"
+          sudo buildah push "${IMAGE}:${TAG}" "docker://${IMAGE}:latest"
+          digest=$(sudo skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${TAG}")
+          echo "kernel_ref=${IMAGE}@${digest}" >> "$GITHUB_OUTPUT"
+          echo "kernel_ref=${IMAGE}@${digest}"
+
+  flashable:
+    name: Build flashable images (boot_b / linux_boot / linux)
+    runs-on: ubuntu-24.04-arm
+    needs: kernel
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Maximize build space
+        uses: ublue-os/remove-unwanted-software@cc0becac701cf642c8f0a6613bbdaf5dc36b259e # v9
+        with:
+          remove-codeql: true
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        run: |
+          set -euxo pipefail
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "${GITHUB_ENV}"
+          echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "${GITHUB_ENV}"
+          sudo apt-get update
+          # NOTE: no podman here — apt's podman conflicts with the runner's
+          # preinstalled podman (/libpod_lock fails with EOVERFLOW). The runner
+          # image already ships a working podman (same as upstream build-disk.yml).
+          # buildah IS installed from apt, same as upstream build.yml: the
+          # preinstalled buildah cannot mkdir its rootless storage
+          # (/run/user/1001/containers/overlay).
+          sudo apt-get install -y --no-install-recommends \
+            buildah \
+            skopeo \
+            fuse-overlayfs \
+            fuse3 \
+            containernetworking-plugins \
+            curl jq pigz python3
+          # buildah runs rootless as the runner user; the maximize-build-space
+          # cleanup leaves /run/user/<uid> unusable (mkdir permission denied).
+          RUNNER_UID=$(id -u)
+          sudo mkdir -p "/run/user/${RUNNER_UID}/containers/overlay"
+          sudo chown -R "${RUNNER_UID}:${RUNNER_UID}" "/run/user/${RUNNER_UID}"
+          sudo chmod 0700 "/run/user/${RUNNER_UID}"
+
+      - name: Check build recipes
+        uses: ublue-os/just-action@30ab4659369934b65b655bf8d2fa4ddd6547d384 # v3
+
+      - name: Get image version
+        id: version
+        run: |
+          TAG="sheng-$(TZ=America/New_York date +%Y%m%d)-$(git rev-parse --short HEAD)"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to ghcr.io
+        run: |
+          # Two auth stores: rootless buildah (runner user, reads
+          # /run/user/<uid>/containers/auth.json) and root podman for the BIB
+          # stage. A single `sudo buildah login` creates a root-owned auth.json
+          # that rootless buildah cannot read.
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Vendor sheng device firmware
+        run: |
+          set -euxo pipefail
+          # armada's vendored system_files covers the handhelds; sheng's DSP
+          # blobs and tuning come from the debian-sheng ecosystem
+          # (ianchb/sheng-firmware, extracted from the device's stock images).
+          # Injecting here rides the existing 20/40 vendor steps unchanged.
+          git clone --depth 1 https://github.com/ianchb/sheng-firmware sheng-fw
+          cp -a sheng-fw/. system_files/usr/lib/firmware/
+          rm -rf sheng-fw
+          find system_files/usr/lib/firmware -name '*.sig' -delete || true
+          echo "Sheng firmware vendored:"
+          ls system_files/usr/lib/firmware
+
+      - name: Inject debug boot kargs
+        if: ${{ inputs.debug_kargs }}
+        run: |
+          set -euxo pipefail
+          # bootc kargs.d is the official kernel-arg channel: these land in the
+          # BLS options and therefore in the baked boot.img cmdline — no
+          # 512-byte truncation fights, no unit-name guessing. Mask the splash
+          # units and keep a verbose console.
+          cat > system_files/usr/lib/bootc/kargs.d/99-sheng-debug.toml <<'EOF'
+          match-architectures = ["aarch64"]
+
+          kargs = [
+              "loglevel=7",
+              "systemd.mask=armada-splash-initrd.service",
+              "systemd.mask=armada-splash-early.service",
+          ]
+          EOF
+          cat system_files/usr/lib/bootc/kargs.d/99-sheng-debug.toml
+
+      - name: Use ext4 rootfs for the sheng variant
+        run: |
+          set -euxo pipefail
+          # The sheng root is a single partition flashed into userdata/a linux
+          # partition: ext4 is simpler (no subvol=/root chain, mature growfs)
+          # and matches the debian-sheng/Armbian paths users already run.
+          # This only affects this workflow's tree — upstream keeps btrfs.
+          cat > system_files/usr/lib/bootc/install/00-armada.toml <<'EOF'
+          [install.filesystem.root]
+          type = "ext4"
+          EOF
+          cat system_files/usr/lib/bootc/install/00-armada.toml
+
+      - name: Build Armada container with the sheng kernel
+        id: container
+        env:
+          KERNEL_REF: ${{ needs.kernel.outputs.kernel_ref }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euxo pipefail
+          # Rootful buildah (same path as the kernel job): no rootless
+          # /run/user storage and auth contortions.
+          [ -n "${KERNEL_REF}" ] || { echo "ERROR: kernel_ref is empty (job output wiring)" >&2; exit 1; }
+          ARMADA_VERSION="$(TZ=America/New_York date +%Y%m%d).$(git rev-parse --short HEAD)"
+          IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}"
+          # Container cache: the tag is date+SHA, so a retry of the same
+          # commit reuses the already-published image instead of rebuilding
+          # the 30-50min rootfs. (Pinned KERNEL_PKG keeps content identical.)
+          if sudo skopeo manifest inspect "docker://${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "==> Reusing published container ${IMAGE}:${TAG}"
+            sudo podman pull "${IMAGE}:${TAG}"
+            sudo buildah tag "${IMAGE}:${TAG}" "armada-sheng:${TAG}"
+          else
+            sudo buildah bud \
+              --build-arg ARMADA_VERSION="${ARMADA_VERSION}" \
+              --build-arg KERNEL_PKG="${KERNEL_REF}" \
+              --format docker --tls-verify=true \
+              --skip-unused-stages=false \
+              --target=armada-rootfs \
+              --platform=linux/arm64 \
+              -t "armada-sheng:${TAG}" \
+              .
+            sudo buildah push "armada-sheng:${TAG}" "docker://${IMAGE}:${TAG}"
+            sudo buildah push "armada-sheng:${TAG}" "docker://${IMAGE}:sheng-latest"
+          fi
+
+      - name: Build BIB raw image (disk-sheng.toml)
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          # BIB needs the host container storage mounted (its manifest
+          # pipeline reads the image via containers-storage); preload the
+          # published ref so bootc finds it (same layers — no duplicate disk).
+          # The route matches the raw-build run that already completed.
+          # Intermittent osbuild overlay corruption ('invalid policy ... \x00'
+          # in /etc/containers/policy.json) is retried up to 3 times.
+          IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}:${TAG}"
+          sudo podman pull "${IMAGE}"
+          # Remove stale work dirs FIRST — the glob would otherwise delete the
+          # BUILDTMP just created below (podman -v fails with statfs).
+          sudo rm -rf "${PWD}"/_build-bib.* || true
+          BUILDTMP=$(mktemp -p "${PWD}" -d -t _build-bib.XXXXXXXXXX)
+          trap 'sudo rm -rf "${BUILDTMP}"' EXIT
+          # Root auth for the podman pull: this runner's sudo keeps
+          # XDG_RUNTIME_DIR, so sudo skopeo login wrote the auth file under
+          # /run/user/<uid>/containers — probe for it.
+          AUTH_FILE=""
+          for cand in /run/user/*/containers/auth.json /run/containers/0/auth.json /root/.config/containers/auth.json; do
+            if [ -f "${cand}" ]; then AUTH_FILE="${cand}"; break; fi
+          done
+          [ -n "${AUTH_FILE}" ] || { echo "ERROR: no containers auth.json found for BIB" >&2; exit 1; }
+          echo "Using BIB auth file: ${AUTH_FILE}"
+          # bootc inside BIB reads /etc/containers/policy.json; the BIB image's
+          # own copy is intermittently corrupted (NUL prefix, 'invalid
+          # character \x00'). Mount a permissive, well-formed policy instead.
+          POLICY_FILE=$(mktemp)
+          trap 'rm -f "${POLICY_FILE}"' EXIT
+          printf '%s\n' '{"default":[{"type":"insecureAcceptAnything"}]}' > "${POLICY_FILE}"
+          echo "Using permissive policy: $(cat "${POLICY_FILE}")"
+          BIB_OK=0
+          for attempt in 1 2 3; do
+            echo "==> BIB attempt ${attempt}/3"
+            if sudo podman run \
+                --rm \
+                --privileged \
+                --pull=newer \
+                --net=host \
+                --platform linux/arm64 \
+                --security-opt label=type:unconfined_t \
+                --security-opt apparmor=unconfined \
+                --cap-add=CAP_MKNOD \
+                -v "$(pwd)/disk_config/disk-sheng.toml:/config.toml:ro" \
+                -v "${BUILDTMP}:/output" \
+                -v /var/lib/containers/storage:/var/lib/containers/storage \
+                -v "${AUTH_FILE}:/root/.config/containers/auth.json:ro" \
+                -v "${AUTH_FILE}:/run/containers/0/auth.json:ro" \
+                -v "${POLICY_FILE}:/etc/containers/policy.json:ro" \
+                "${BIB_IMAGE}" \
+                --type raw \
+                --use-librepo=True \
+                --rootfs=ext4 \
+                --target-arch arm64 \
+                "${IMAGE}"; then
+              BIB_OK=1
+              break
+            fi
+            echo "==> BIB attempt ${attempt} failed; retrying after cleanup"
+            rm -rf "${BUILDTMP}"/* 2>/dev/null || true
+            sudo podman image prune -f 2>&1 | tail -1 || true
+            sleep 30
+          done
+          [ "${BIB_OK}" = 1 ] || { echo "ERROR: BIB failed after 3 attempts" >&2; exit 1; }
+          chown -R "$(id -u):$(id -g)" "${BUILDTMP}" 2>/dev/null || sudo chown -R "$(id -u):$(id -g)" "${BUILDTMP}" || true
+          RAW_SRC=$(find "${BUILDTMP}" -name 'disk.raw' -type f -print -quit)
+          if [ -z "${RAW_SRC}" ]; then
+            echo "ERROR: BIB completed but no disk.raw found" >&2
+            find "${BUILDTMP}" -maxdepth 3 -printf '%y %p %s bytes\n' 2>/dev/null | head -40 >&2
+            exit 1
+          fi
+          rm -rf output/image
+          mkdir -p output/image
+          mv -f "${RAW_SRC}" output/image/disk.raw
+          sudo podman image prune -a -f 2>&1 | tail -2 || true
+          ls -lh output/image/
+
+      - name: Export fastboot images
+        run: |
+          set -euxo pipefail
+          ROOT_PART="${{ inputs.root_partition_name }}"
+          [ "${{ inputs.boot_mode }}" != "single" ] || ROOT_PART=userdata
+          sudo ./post_process/export-fastboot-images.sh \
+            --device sm8550-xiaomi-sheng \
+            --raw output/image/disk.raw \
+            --out output/fastboot \
+            --root-partition "${ROOT_PART}"
+          sudo chown -R "$(id -u):$(id -g)" output/fastboot
+          # Free the 13G+ BIB raw before artifact packing.
+          sudo rm -f output/image/disk.raw
+          sha256sum output/fastboot/* > output/fastboot/SHA256SUMS.build
+          ls -lh output/fastboot
+
+      - name: Upload flashable images
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: armada-sheng-flashable
+          path: |
+            output/fastboot/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 3
+          overwrite: true
