@@ -1,0 +1,189 @@
+---
+# Build and publish ONLY the sheng Armada container (no BIB, no flashable
+# export). This is the "refresh the base image" step of the pipeline:
+#
+#   1. build sheng kernel (ianchb/sm8550-mainline @ sheng-7.2.2)
+#      -> ghcr.io/<owner>/armada-sheng-kernel:<date>-<sha> (+ :latest)
+#   2. build Armada rootfs with KERNEL_PKG=<that image>
+#      -> ghcr.io/<owner>/armada:sheng-<date>-<sha> (+ :sheng-latest)
+#
+# The export workflow (build-armada-export.yml) consumes :sheng-latest.
+name: Build sheng container (base image refresh)
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_repo:
+        description: "sheng kernel repository"
+        type: string
+        default: https://github.com/ianchb/sm8550-mainline
+      kernel_branch:
+        description: "sheng kernel branch (the sheng board support lives here)"
+        type: string
+        default: sheng-7.2.2
+      kernel_config:
+        description: "sheng board config file inside this repo (kernel-sheng/)"
+        type: string
+        default: sm8550.config
+      rebuild:
+        description: "Force a fresh container build (default: reuse the published image for the current commit)"
+        type: boolean
+        default: false
+
+env:
+  IMAGE_NAME: "${{ github.event.repository.name }}"
+  IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  kernel:
+    name: Build sheng kernel (ianchb/sm8550-mainline)
+    runs-on: ubuntu-24.04-arm
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      kernel_ref: ${{ steps.kernel.outputs.kernel_ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install build tools
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ccache jq git curl zstd buildah skopeo
+
+      - name: Restore ccache
+        uses: actions/cache@v6
+        with:
+          path: /home/runner/.ccache
+          key: sheng-kernel-${{ inputs.kernel_branch }}-${{ github.run_id }}
+          restore-keys: sheng-kernel-${{ inputs.kernel_branch }}-
+
+      - name: Select kernel source
+        run: |
+          set -euxo pipefail
+          sed -i "s|^KERNEL_REPO=.*|KERNEL_REPO=${{ inputs.kernel_repo }}|" kernel-sheng/BUILD.env
+          sed -i "s|^KERNEL_BRANCH=.*|KERNEL_BRANCH=${{ inputs.kernel_branch }}|" kernel-sheng/BUILD.env
+          sed -i "s|^KERNEL_CONFIG=.*|KERNEL_CONFIG=${{ inputs.kernel_config }}|" kernel-sheng/BUILD.env
+
+      - name: Build kernel
+        run: |
+          set -euxo pipefail
+          export CCACHE_DIR=/home/runner/.ccache
+          export PATH="/usr/lib/ccache:$PATH"
+          ./kernel-sheng/build.sh "$PWD/kernel-sheng/out"
+
+      - name: Push kernel image
+        id: kernel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          IMAGE="${IMAGE_REGISTRY}/armada-sheng-kernel"
+          TAG="$(TZ=America/New_York date +%Y%m%d)-$(git rev-parse --short HEAD)"
+          sudo buildah bud --platform linux/arm64 -t "${IMAGE}:${TAG}" kernel-sheng/
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+          sudo buildah push "${IMAGE}:${TAG}" "docker://${IMAGE}:${TAG}"
+          sudo buildah push "${IMAGE}:${TAG}" "docker://${IMAGE}:latest"
+          digest=$(sudo skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${TAG}")
+          echo "kernel_ref=${IMAGE}@${digest}" >> "$GITHUB_OUTPUT"
+          echo "kernel_ref=${IMAGE}@${digest}"
+
+  container:
+    name: Build Armada container with the sheng kernel
+    runs-on: ubuntu-24.04-arm
+    needs: kernel
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Maximize build space
+        uses: ublue-os/remove-unwanted-software@cc0becac701cf642c8f0a6613bbdaf5dc36b259e # v9
+        with:
+          remove-codeql: true
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        run: |
+          set -euxo pipefail
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "${GITHUB_ENV}"
+          echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "${GITHUB_ENV}"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            buildah \
+            skopeo \
+            fuse-overlayfs \
+            fuse3 \
+            containernetworking-plugins \
+            curl jq pigz python3
+          RUNNER_UID=$(id -u)
+          sudo mkdir -p "/run/user/${RUNNER_UID}/containers/overlay"
+          sudo chown -R "${RUNNER_UID}:${RUNNER_UID}" "/run/user/${RUNNER_UID}"
+          sudo chmod 0700 "/run/user/${RUNNER_UID}"
+
+      - name: Vendor sheng device firmware
+        run: |
+          set -euxo pipefail
+          # sheng's DSP blobs and tuning (adsp/cdsp/CS35L43/ath12k/...).
+          git clone --depth 1 https://github.com/ianchb/sheng-firmware sheng-fw
+          cp -a sheng-fw/. system_files/usr/lib/firmware/
+          rm -rf sheng-fw
+          find system_files/usr/lib/firmware -name '*.sig' -delete || true
+
+      - name: Build + push Armada container with the sheng kernel
+        id: container
+        env:
+          KERNEL_REF: ${{ needs.kernel.outputs.kernel_ref }}
+        run: |
+          set -euxo pipefail
+          [ -n "${KERNEL_REF}" ] || { echo "ERROR: kernel_ref is empty" >&2; exit 1; }
+          ARMADA_VERSION="$(TZ=America/New_York date +%Y%m%d).$(git rev-parse --short HEAD)"
+          IMAGE="${IMAGE_REGISTRY}/${IMAGE_NAME}"
+          TAG="sheng-$(TZ=America/New_York date +%Y%m%d)-$(git rev-parse --short HEAD)"
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+          # Container cache: the tag is date+SHA, so a retry of the same
+          # commit reuses the already-published image instead of rebuilding
+          # the 30-50min rootfs. (Pinned KERNEL_PKG keeps content identical.)
+          if [ "${{ inputs.rebuild }}" != "true" ] && sudo skopeo manifest inspect "docker://${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "==> Reusing published container ${IMAGE}:${TAG}"
+            sudo podman pull "${IMAGE}:${TAG}"
+            sudo buildah tag "${IMAGE}:${TAG}" "armada-sheng:${TAG}"
+          else
+            sudo buildah bud \
+              --build-arg ARMADA_VERSION="${ARMADA_VERSION}" \
+              --build-arg KERNEL_PKG="${KERNEL_REF}" \
+              --format docker --tls-verify=true \
+              --skip-unused-stages=false \
+              --target=armada-rootfs \
+              --platform=linux/arm64 \
+              -t "armada-sheng:${TAG}" \
+              .
+            sudo buildah push "armada-sheng:${TAG}" "docker://${IMAGE}:${TAG}"
+          fi
+          sudo buildah push "armada-sheng:${TAG}" "docker://${IMAGE}:sheng-latest"
+          digest=$(sudo skopeo inspect --format '{{.Digest}}' "docker://${IMAGE}:${TAG}")
+          echo "container_ref=${IMAGE}:${TAG}@${digest}"
+          echo "container_ref=${IMAGE}:${TAG}@${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize
+        run: |
+          set -euxo pipefail
+          echo "==> base image refreshed:"
+          echo "    kernel:  ${{ needs.kernel.outputs.kernel_ref }}"
+          echo "    container: ${IMAGE_REGISTRY}/${IMAGE_NAME}:sheng-latest"
+          echo
+          echo "Next: run build-armada-export.yml to export a flashable from :sheng-latest"

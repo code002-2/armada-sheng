@@ -55,14 +55,33 @@
 
 ## 构建可刷镜像
 
-运行**容器导出**流水线(无 bootc、无 BIB):
+**先刷新基础镜像**(sheng 容器),再导出。两条流水线:
 
-- **GitHub Actions:** [`build-armada-export.yml`](.github/workflows/build-armada-export.yml)
-  —— 拉取已构建的 Armada 容器(`ghcr.io/code002-2/armada-sheng:sheng-latest`),
-  逐字节导出为 `rootfs.img`,烘焙 `boot_b.img`,上传制品
-  `armada-flashable-no-ota`。
-- **本地:** `.github/scripts/armada-export-flashable.sh`(需要
-  `podman`、配套 `mkbootimg.py` 与 `e2fsprogs`)。
+1. [`build-sheng-container.yml`](.github/workflows/build-sheng-container.yml)
+   —— **刷新基础镜像**(`:sheng-latest`):构建 sheng 内核 →
+   构建 Armada 容器。几分钟到几十分钟(有缓存,同 commit 复用)。
+2. [`build-armada-export.yml`](.github/workflows/build-armada-export.yml)
+   —— **导出可刷镜像**:拉取 `:sheng-latest`,逐字节导出为 `rootfs.img`,
+   烘焙 `boot_b.img`,上传制品 `armada-flashable-no-ota`
+   (勾选 `publish_release` 还会发布到 GitHub Release,自动分卷)。
+
+<details>
+<summary>更新链路(为什么要先刷容器)</summary>
+
+```
+ianchb/sm8550-mainline 内核更新
+        ↓
+build-sheng-container.yml: 内核镜像 → Armada 容器 (ghcr :sheng-latest)
+        ↓
+build-armada-export.yml: 导出 :sheng-latest → rootfs.img + boot_b.img → Release
+```
+
+导出流程不重新构建系统,只导出当前 `:sheng-latest`——
+**想更新系统内容(Steam/软件包/上游 armada 修复),必须先跑容器 workflow。**
+</details>
+
+**本地:** `.github/scripts/armada-export-flashable.sh`(需要
+`podman`、配套 `mkbootimg.py` 与 `e2fsprogs`)。
 
 产物(位于制品目录 / `output/`):
 
