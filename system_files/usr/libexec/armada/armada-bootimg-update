@@ -7,15 +7,35 @@ ESP="${ESP:-/boot/efi}"
 BOOTROOT="${BOOTROOT:-/boot}"
 SYSROOT="${SYSROOT:-/}"
 MKBOOTIMG="${MKBOOTIMG:-/usr/libexec/armada/mkbootimg.py}"
-DTB_LIST="${DTB_LIST:-/usr/lib/armada/supported-dtbs}"
-ARGS_FILE="${ARGS_FILE:-/usr/lib/armada/bootimg-args}"
-KERNEL_OUT="${ESP}/KERNEL"
-STAMP="${ESP}/.armada-bootimg.id"
-# Plain 8.3: a long name would also generate a short alias next to KERNEL, the
-# one name the ABL looks up.
-PREV_OUT="${ESP}/KERNEL.BAK"
-PREV_TMP="${ESP}/KERNEL.TMP"
-PREV_STAMP="${ESP}/.armada-bootimg.prev.id"
+
+# Device-specific inputs. device-env sources the matching profile (selected
+# from the DTB model string) and prints nothing it isn't asked to; some
+# profiles (sheng) declare a boot partition instead of an ESP /KERNEL.
+if [ -r /usr/libexec/armada/device-env ]; then
+    . /usr/libexec/armada/device-env >/dev/null
+fi
+
+# Default: ESP /KERNEL (ROCKNIX ABL on the SD-card devices). A device profile
+# can point at an Android boot partition instead (ARMADA_BOOTIMG_OUT), so a
+# bootc upgrade takes effect through the vendor ABL the same way.
+if [ -n "${ARMADA_BOOTIMG_OUT:-}" ]; then
+    BOOTIMG_MODE=partition
+    KERNEL_OUT="${ARMADA_BOOTIMG_OUT}"
+    STAMP="${ARMADA_BOOTIMG_STAMP:-/var/lib/armada/bootimg.id}"
+    BOOTIMG_DEVICE="$(readlink -f "${ARMADA_BOOTIMG_OUT}" 2>/dev/null || true)"
+    PREV_OUT=""; PREV_TMP=""; PREV_STAMP=""
+else
+    BOOTIMG_MODE=esp
+    KERNEL_OUT="${ESP}/KERNEL"
+    STAMP="${ESP}/.armada-bootimg.id"
+    PREV_OUT="${ESP}/KERNEL.BAK"
+    PREV_TMP="${ESP}/KERNEL.TMP"
+    PREV_STAMP="${ESP}/.armada-bootimg.prev.id"
+    BOOTIMG_DEVICE=""
+fi
+
+DTB_LIST="${ARMADA_DTB_LIST:-/usr/lib/armada/supported-dtbs}"
+ARGS_FILE="${ARMADA_BOOTIMG_ARGS_FILE:-/usr/lib/armada/bootimg-args}"
 
 snapshot=0
 [ "${1:-}" = "--snapshot-prev" ] && snapshot=1
@@ -35,16 +55,25 @@ flock -w 30 9 || {
 
 # /KERNEL must land on the FAT ESP the ABL reads; if it isn't mounted we'd write
 # to a stray dir and the ABL would keep booting the old kernel. Fail loud instead.
-findmnt -rn "${ESP}" >/dev/null 2>&1 || {
-    echo "armada-bootimg-update: ${ESP} is not a mountpoint; refusing to write /KERNEL" >&2
-    exit 1
-}
+# In boot-partition mode the target must exist as a block device.
+if [ "${BOOTIMG_MODE}" = "esp" ]; then
+    findmnt -rn "${ESP}" >/dev/null 2>&1 || {
+        echo "armada-bootimg-update: ${ESP} is not a mountpoint; refusing to write /KERNEL" >&2
+        exit 1
+    }
+else
+    [ -b "${BOOTIMG_DEVICE}" ] || {
+        echo "armada-bootimg-update: boot partition not found (${ARMADA_BOOTIMG_OUT} -> ${BOOTIMG_DEVICE:-unresolved})" >&2
+        exit 1
+    }
+fi
 
 # A spare to rename over a corrupt /KERNEL from any PC that reads the SD card;
 # the initramfs fallback ships inside /KERNEL and cannot rescue that. Boot-time
 # only, so the spare is an image the ABL booted; never fails the caller.
 snapshot_prev() {
     local cur need avail
+    [ "${BOOTIMG_MODE}" = "esp" ] || return 0
     [ -f "${KERNEL_OUT}" ] || return 0
     cur=$(cat "${STAMP}" 2>/dev/null || true)
     [ -n "${cur}" ] || return 0
@@ -118,8 +147,8 @@ while read -r name; do
 done < "${DTB_LIST}"
 id=$(armada_bootimg_id "${linux}" "${initrd}" "${options}" "${DTB_LIST}" "${ARGS_FILE}" \
     "$(armada_bootimg_content_id "${content_files[@]}")")
-if [ -f "${KERNEL_OUT}" ] && [ "$(cat "${STAMP}" 2>/dev/null || true)" = "${id}" ]; then
-    echo "armada-bootimg-update: /KERNEL already current (${linux##*/})"
+if { [ -f "${KERNEL_OUT}" ] || [ "${BOOTIMG_MODE}" = "partition" ]; } && [ "$(cat "${STAMP}" 2>/dev/null || true)" = "${id}" ]; then
+    echo "armada-bootimg-update: boot image already current (${linux##*/})"
     exit 0
 fi
 
@@ -155,9 +184,26 @@ python3 "${MKBOOTIMG}" \
     -o "${work}/KERNEL"
 
 # Atomic on the FAT ESP: rename can't leave a half-written /KERNEL.
-cp -f "${work}/KERNEL" "${ESP}/.KERNEL.new"
-sync "${ESP}/.KERNEL.new"
-mv -f "${ESP}/.KERNEL.new" "${KERNEL_OUT}"
+if [ "${BOOTIMG_MODE}" = "esp" ]; then
+    cp -f "${work}/KERNEL" "${ESP}/.KERNEL.new"
+    sync "${ESP}/.KERNEL.new"
+    mv -f "${ESP}/.KERNEL.new" "${KERNEL_OUT}"
+else
+    # Boot partition: no atomic rename on a block device, so refuse to write an
+    # image that does not fit, then block-copy from a /run staging file.
+    img_bytes=$(stat -c %s "${work}/KERNEL")
+    part_sectors=$(blockdev --getsz "${BOOTIMG_DEVICE}" 2>/dev/null || true)
+    if [ -n "${part_sectors}" ] && [ $((part_sectors * 512)) -lt "${img_bytes}" ]; then
+        echo "armada-bootimg-update: boot image (${img_bytes}B) exceeds ${ARMADA_BOOTIMG_OUT} (${part_sectors} sectors)" >&2
+        exit 1
+    fi
+    mkdir -p "$(dirname "${STAMP}")"
+    tmp="/run/armada-bootimg.new"
+    cp -f "${work}/KERNEL" "${tmp}"
+    sync "${tmp}"
+    dd if="${tmp}" of="${BOOTIMG_DEVICE}" bs=1M conv=fsync status=none
+    rm -f "${tmp}"
+fi
 printf '%s' "${id}" > "${STAMP}"
 sync
 
