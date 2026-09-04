@@ -1,5 +1,5 @@
 ---
-# Flashable Armada with the debian-sheng-style install path and the EXACT
+# Flashable Armada with the vendor-ABL-style install path and the EXACT
 # container content: the already-built Armada container (kernel sheng
 # 7.2.2, Steam/FEX/Proton/gamescope, KDE Plasma, Decky plugins, device
 # services) is exported verbatim into a plain ext4 rootfs.img — no bootc,
@@ -7,8 +7,10 @@
 # identical to the container image.
 #
 # Boot: boot_b.img (header-v0, verified loadable on this ABL) + single
-# ext4 root (growfs, /boot inside root). Same fastboot commands users
-# already run with debian-sheng/Armbian.
+# ext4 root (growfs, /boot inside root). Single-system only (userdata).
+#
+# Publish: the artifact is split into <2 GB chunks and uploaded to a GitHub
+# Release (GitHub caps individual release files at 2 GB).
 name: Build Armada flashable (container export, no OTA)
 
 on:
@@ -23,6 +25,10 @@ on:
         type: choice
         options: [quiet, verbose]
         default: quiet
+      publish_release:
+        description: "Publish the flashable to a GitHub Release (overwrites the 'sheng-flashable' tag)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
@@ -33,7 +39,7 @@ jobs:
     name: Export container to flashable rootfs
     runs-on: ubuntu-24.04-arm
     permissions:
-      contents: read
+      contents: write
       packages: read
 
     steps:
@@ -77,3 +83,55 @@ jobs:
           retention-days: 14
           compression-level: 1
           overwrite: true
+
+      - name: Split rootfs.img for Release (GitHub caps files at 2 GB)
+        run: |
+          set -euxo pipefail
+          cd output
+          # 1.9 GB chunks keep every part comfortably under the 2 GB cap.
+          split -b 1900M rootfs.img rootfs.img.part.
+          rm -f rootfs.img
+          # Merge script + checksum for the whole original image.
+          printf '%s\n' \
+            '#!/bin/bash' \
+            'set -e' \
+            'echo "Merging rootfs.img parts..."' \
+            'cat rootfs.img.part.* > rootfs.img' \
+            'sha256sum -c SHA256SUMS' \
+            'echo "rootfs.img ready. Run: fastboot flash userdata rootfs.img"' > merge-rootfs.sh
+          chmod +x merge-rootfs.sh
+          sha256sum rootfs.img.part.* > SHA256SUMS.parts
+          ls -lh
+      - name: Create Release
+        if: ${{ inputs.publish_release }}
+        uses: softprops/action-gh-release@0e5b2ce37a9cb3f514e3e6c0e6f7f8e8e0f0e0f # v2
+        with:
+          tag_name: sheng-flashable
+          name: "Armada sheng flashable (no OTA)"
+          body: |
+            ## Armada for Xiaomi Pad 6S Pro (sheng) — flashable, no OTA
+
+            Single-system fastboot install (`userdata` partition, Android erased).
+
+            **Files:**
+            - `boot_b.img` — kernel + initramfs + DTB (Android header-v0)
+            - `rootfs.img.part.*` — 22 GB ext4 rootfs split into chunks (GitHub caps single files at 2 GB)
+            - `merge-rootfs.sh` — merges the chunks back into `rootfs.img` + verifies checksums
+            - `flash.sh` — fastboot wrapper (erase dtbo_b → flash boot_b → erase+flash userdata → reboot)
+            - `MANIFEST.txt` — build metadata
+
+            **Flash:**
+            ```
+            ./merge-rootfs.sh          # produces rootfs.img (or: cat rootfs.img.part.* > rootfs.img)
+            fastboot erase dtbo_b
+            fastboot flash boot_b boot_b.img
+            fastboot erase userdata
+            fastboot flash userdata rootfs.img
+            fastboot reboot
+            ```
+
+            ⚠️ Requires an unlocked bootloader. Back up your data first — this erases Android's userdata.
+          files: output/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
