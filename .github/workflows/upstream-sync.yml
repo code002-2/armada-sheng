@@ -1,0 +1,153 @@
+---
+# Compare this fork's main with the armada-os/armada upstream and open a PR
+# carrying the upstream changes (with a diff report) whenever upstream moved.
+#
+# - branch: upstream-sync  (fork main + merge of upstream/main)
+# - PR: base main, head upstream-sync, body = upstream commits + diffstat
+# - if a PR with the same head already exists, its body is updated instead
+# - on merge conflicts the PR is still opened; GitHub shows mergeable=false
+#
+# Trigger: schedule (weekly) or manual.
+name: Sync with armada-os upstream
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      open_pr:
+        description: "Create/update the upstream sync PR"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Compare with upstream and open PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork main (full history)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/armada-os/armada.git 2>/dev/null || \
+            git remote set-url upstream https://github.com/armada-os/armada.git
+          git fetch --prune --tags upstream main
+          git fetch --prune origin main
+
+      - name: Compare upstream vs fork
+        id: compare
+        run: |
+          set -euxo pipefail
+          BEHIND=$(git rev-list --count origin/main..upstream/main)
+          AHEAD=$(git rev-list --count upstream/main..origin/main)
+          echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
+          echo "ahead=${AHEAD}" >> "$GITHUB_OUTPUT"
+          echo "== upstream/main has ${BEHIND} commit(s) not in fork main"
+          echo "== fork main has ${AHEAD} commit(s) not in upstream/main"
+          if [ "${BEHIND}" -eq 0 ]; then
+            echo "== up to date, nothing to sync"
+          fi
+
+      - name: Build sync branch (fork main + upstream merge)
+        if: ${{ steps.compare.outputs.behind > 0 }}
+        run: |
+          set -euxo pipefail
+          git checkout -B upstream-sync origin/main
+          set +e
+          git merge upstream/main --no-edit >/tmp/merge.log 2>&1
+          MERGE_RC=$?
+          set -e
+          if [ "${MERGE_RC}" -ne 0 ]; then
+            echo "== MERGE CONFLICTS: keeping the conflict markers and opening a PR marked unmergeable"
+            git add -A || true
+            git -c core.editor=true commit --no-edit -m "chore: sync with upstream armada-os (CONFLICTS — resolve manually)" || true
+          fi
+          git push origin upstream-sync --force-with-lease
+
+      - name: Build PR body (diff report)
+        if: ${{ steps.compare.outputs.behind > 0 }}
+        id: report
+        run: |
+          set -euxo pipefail
+          {
+            echo "## 与 armada-os 上游的自动同步"
+            echo
+            echo "本 fork 落后上游 **${BEHIND}** 个提交(领先 **${AHEAD}** 个 sheng 提交)。"
+            echo
+            echo "### 上游新提交"
+            echo "\`\`\`"
+            git log --oneline --no-merges origin/main..upstream/main
+            echo "\`\`\`"
+            echo
+            echo "### 文件变更统计"
+            echo "\`\`\`"
+            git diff --stat origin/main...upstream/main | tail -30
+            echo "\`\`\`"
+            echo
+            echo "### 说明"
+            echo "由 workflow 自动创建;若显示 UNMERGEABLE,请手动解决冲突后合并。"
+            echo "如需重新拉取:sheng 侧的自动化更新请检查 \`build-sheng-container.yml\` / \`build-armada-export.yml\`。"
+          } > "$GITHUB_WORKSPACE/pr-body.md"
+
+      - name: Install gh CLI (if missing)
+        if: ${{ steps.compare.outputs.behind > 0 }}
+        run: |
+          set -euxo pipefail
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "== installing gh"
+            sudo mkdir -p -m 755 /etc/apt/keyrings
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+              sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+              sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+            sudo apt-get update -qq && sudo apt-get install -y -qq gh
+          fi
+          gh --version
+
+      - name: Create or update PR
+        if: ${{ steps.compare.outputs.behind > 0 && (github.event_name == 'schedule' || inputs.open_pr) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          BODY="$(cat "$GITHUB_WORKSPACE/pr-body.md")"
+          EXISTING=$(gh pr list --repo "${GITHUB_REPOSITORY}" --head upstream-sync \
+                       --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          if [ -n "${EXISTING}" ]; then
+            echo "== updating existing PR #${EXISTING}"
+            gh pr edit "${EXISTING}" --repo "${GITHUB_REPOSITORY}" \
+              --title "chore: sync with armada-os upstream" \
+              --body "${BODY}"
+          else
+            echo "== creating PR"
+            gh pr create --repo "${GITHUB_REPOSITORY}" \
+              --base main --head upstream-sync \
+              --title "chore: sync with armada-os upstream" \
+              --body "${BODY}"
+          fi
+
+      - name: Close stale PR if up to date
+        if: ${{ steps.compare.outputs.behind == 0 }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          EXISTING=$(gh pr list --repo "${GITHUB_REPOSITORY}" --head upstream-sync \
+                       --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          if [ -n "${EXISTING}" ]; then
+            echo "== upstream in sync; closing stale PR #${EXISTING}"
+            gh pr close "${EXISTING}" --repo "${GITHUB_REPOSITORY}" --comment "Upstream is now in sync; no PR needed."
+          fi
