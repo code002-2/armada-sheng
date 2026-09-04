@@ -82,6 +82,9 @@ jobs:
       - name: Build PR body (diff report)
         if: ${{ steps.compare.outputs.behind > 0 }}
         id: report
+        env:
+          BEHIND: ${{ steps.compare.outputs.behind }}
+          AHEAD: ${{ steps.compare.outputs.ahead }}
         run: |
           set -euxo pipefail
           {
