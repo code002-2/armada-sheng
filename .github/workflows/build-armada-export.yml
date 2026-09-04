@@ -104,7 +104,7 @@ jobs:
           ls -lh
       - name: Create Release
         if: ${{ inputs.publish_release }}
-        uses: softprops/action-gh-release@0e5b2ce37a9cb3f514e3e6c0e6f7f8e8e0f0e0f # v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: sheng-flashable
           name: "Armada sheng flashable (no OTA)"
