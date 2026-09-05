@@ -25,19 +25,31 @@ if [[ "${1:-}" == "status" ]]; then
     exit 0
 fi
 
+# --silent: no load probe, minimal output (used from the desktop shortcut /
+# pkexec where a terminal is not attached).
+SILENT=0
+if [[ "${1:-}" == "--silent" ]]; then
+    SILENT=1
+fi
+
 echo "== 解锁 CPU 频率上限 =="
 for p in /sys/devices/system/cpu/cpufreq/policy*; do
     [ -f "${p}/scaling_max_freq" ] || continue
     max=$(cat "${p}/cpuinfo_max_freq" 2>/dev/null || true)
     [ -n "${max}" ] || continue
     echo "${max}" > "${p}/scaling_max_freq" 2>/dev/null || true
-    echo "  $(basename "$p"): max -> ${max}"
+    [ "${SILENT}" = 1 ] || echo "  $(basename "$p"): max -> ${max}"
 done
 
 echo "== 开启 boost =="
 if [ -f /sys/devices/system/cpu/cpufreq/boost ]; then
     echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
-    echo "  boost: 已开启 (X3 可到 3.19GHz)"
+    [ "${SILENT}" = 1 ] || echo "  boost: 已开启 (X3 可到 3.19GHz)"
+fi
+
+if [ "${SILENT}" = 1 ]; then
+    echo "== 已拉满! =="
+    exit 0
 fi
 
 echo "== 已拉满! =="

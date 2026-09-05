@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Armada Max CPU Freq
+Name[zh_CN]=拉满 CPU 频率
+Comment=Unlock CPU scaling_max_freq and enable boost (sheng)
+Comment[zh_CN]=解锁 CPU 频率上限并开启睿频(小米平板 6S Pro)
+Exec=pkexec /usr/local/bin/armada-max-freq --silent
+Icon=preferences-system-performance
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+Keywords=cpu;frequency;boost;performance;
