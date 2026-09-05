@@ -1,23 +1,22 @@
 #!/bin/bash
-# Lift scaling_max_freq to the hardware ceiling and enable cpufreq boost.
+# Lift scaling_max_freq to the hardware ceiling (incl. boost) and enable
+# cpufreq boost at boot.
 #
 # Reason: on sheng (SM8550), armada-powerd's performance profile is not
 # applied at boot — scaling_max_freq stays at the last written value (the
 # balanced underclock cap, e.g. 1843200 for policy7) even after switching
 # to Performance. This oneshot waits for cpufreq to appear, then raises
-# each policy to its cpuinfo_max_freq.
+# each policy to its full ceiling (boost max where advertised; else
+# cpuinfo_max_freq).
 #
 # Frequency model on sheng (verified):
-#   normal max  = 2956800 (2.96 GHz) — from the EPSS LUT
-#   boost max   = 3187200 (3.19 GHz) — in scaling_boost_frequencies;
-#                 boost is DISABLED by default (kernel), so the CPU
-#                 never crosses 2.96 GHz until enabled. Enable it so games
-#                 can hit the X3 boost ceiling (matches the Android /
-#                 Debian behaviour the device shipped with).
+#   normal max  = 2956800 (2.96 GHz) — EPSS LUT
+#   boost max   = 3187200 (3.19 GHz) — scaling_boost_frequencies;
+#                 boost is DISABLED by default (kernel), so the CPU never
+#                 crosses 2.96 GHz until enabled.
 #
 # powerd may later reset the caps when it applies a profile; if so, drop
-# this unit and rely on powerd again. Writing only the max ceiling keeps
-# the governor/load behaviour intact.
+# this unit and rely on powerd again.
 set -euo pipefail
 
 for i in $(seq 1 60); do
@@ -28,7 +27,9 @@ done
 
 for policy in /sys/devices/system/cpu/cpufreq/policy*; do
     [ -f "${policy}/scaling_max_freq" ] || continue
-    max=$(cat "${policy}/cpuinfo_max_freq" 2>/dev/null || echo "")
+    # Boost ceiling where advertised; else the cpuinfo max.
+    max=$(awk '{print $NF}' "${policy}/scaling_boost_frequencies" 2>/dev/null || true)
+    [ -n "${max}" ] || max=$(cat "${policy}/cpuinfo_max_freq" 2>/dev/null || echo "")
     [ -n "${max}" ] || continue
     echo "${max}" > "${policy}/scaling_max_freq" 2>/dev/null || true
     echo "unlock ${policy}: scaling_max_freq -> ${max}"

@@ -1,0 +1,53 @@
+#!/bin/bash
+# 一键拉满 sheng CPU 频率:解锁 scaling_max_freq 到硬件上限 + 开启 boost。
+# 用法:
+#   sudo armada-max-freq            # 解锁 + 开 boost
+#   armada-max-freq status          # 查看当前频率状态
+#
+# 结果(已实测):
+#   policy0 (小核) max -> 2016000
+#   policy3 (中核) max -> 2803200
+#   policy7 (大核) max -> 3187200 (3.19 GHz, boost 档)
+#   boost = 1
+# 实际运行频率由 schedutil 按负载决定,加压时可接近上限。
+set -euo pipefail
+
+if [[ "${1:-}" == "status" ]]; then
+    echo "== CPU 频率状态 =="
+    for p in /sys/devices/system/cpu/cpufreq/policy*; do
+        [ -d "$p" ] || continue
+        boost=$(cat "${p}/scaling_boost_frequencies" 2>/dev/null | awk '{print $NF}')
+        echo "  $(basename "$p"): cur=$(cat "${p}/scaling_cur_freq" 2>/dev/null) / max=$(cat "${p}/scaling_max_freq" 2>/dev/null) / boost_max=${boost:-n/a}"
+    done
+    if [ -f /sys/devices/system/cpu/cpufreq/boost ]; then
+        echo "  boost: $(cat /sys/devices/system/cpu/cpufreq/boost)  (1=开)"
+    fi
+    exit 0
+fi
+
+echo "== 解锁 CPU 频率上限 =="
+for p in /sys/devices/system/cpu/cpufreq/policy*; do
+    [ -f "${p}/scaling_max_freq" ] || continue
+    max=$(cat "${p}/cpuinfo_max_freq" 2>/dev/null || true)
+    [ -n "${max}" ] || continue
+    echo "${max}" > "${p}/scaling_max_freq" 2>/dev/null || true
+    echo "  $(basename "$p"): max -> ${max}"
+done
+
+echo "== 开启 boost =="
+if [ -f /sys/devices/system/cpu/cpufreq/boost ]; then
+    echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
+    echo "  boost: 已开启 (X3 可到 3.19GHz)"
+fi
+
+echo "== 已拉满! =="
+echo "  (加压 3 秒观察,需要时间可等待)"
+load_pids=()
+for i in $(seq 1 8); do
+    yes > /dev/null &
+    load_pids+=("$!")
+done
+sleep 3
+cur=$(cat /sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq 2>/dev/null || echo n/a)
+echo "  当前大核频率: ${cur} Hz (上限 3187200)"
+kill "${load_pids[@]}" 2>/dev/null || true
