@@ -60,8 +60,12 @@ cp "${SCRIPT_DIR}/${KERNEL_CONFIG}" .config
 
 # Merge only symbols the sheng config already defines (a sheng-only tree may
 # predate a fragment option; merge_config.sh would abort on "not in final
-# .config" otherwise).
+# .config" otherwise). Symbols the sheng config does not define yet are
+# pre-set via scripts/config (olddefconfig drops any that no Kconfig entry
+# backs, so pre-setting unknown symbols is harmless); truly unknown symbols
+# land in .config only if their Kconfig entry exists.
 fragment=$(mktemp)
+preset=$(mktemp)
 while IFS= read -r line; do
     [[ -z "${line:-}" || "${line}" == \#* ]] && continue
     sym="${line%%=*}"
@@ -70,18 +74,29 @@ while IFS= read -r line; do
     if grep -qE "^(# )?${sym}=|^# ${sym} is not set" .config; then
         printf '%s\n' "${line}" >> "${fragment}"
     else
-        echo "  skip ${sym} (not in sheng config)"
+        echo "  preset ${sym} (not in sheng config; Kconfig decides)"
+        value="${line#*${sym}=}"
+        case "${value}" in
+            y)   printf '%s\n' "scripts/config --enable ${sym}" >> "${preset}" ;;
+            m)   printf '%s\n' "scripts/config --module ${sym}" >> "${preset}" ;;
+            *)   printf '%s\n' "scripts/config --set-val ${sym} \"${value}\"" >> "${preset}" ;;
+        esac
     fi
 done < "${SCRIPT_DIR}/${KERNEL_OVERRIDES}"
+
+if [ -s "${preset}" ]; then
+    echo "==> Pre-setting symbols absent from the sheng config"
+    bash "${preset}"
+fi
 
 if [ -s "${fragment}" ]; then
     export ARCH="${ARCH:-arm64}"
     [[ "${HOST_ARCH}" == "aarch64" ]] || export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
     echo "==> Merging armada fragment ($(wc -l < "${fragment}") symbols)"
     bash scripts/kconfig/merge_config.sh .config "${fragment}"
-    make "${MAKE_ARGS[@]}" olddefconfig
 fi
-rm -f "${fragment}"
+make "${MAKE_ARGS[@]}" olddefconfig
+rm -f "${fragment}" "${preset}"
 
 # ---- 3. Build ----------------------------------------------------------------
 echo "==> Build Image + Image.gz + dtbs + modules"
