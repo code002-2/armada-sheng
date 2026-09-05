@@ -1,13 +1,19 @@
 #!/bin/bash
-# Lift scaling_max_freq to the hardware ceiling for every CPU policy.
+# Lift scaling_max_freq to the hardware ceiling and enable cpufreq boost.
 #
 # Reason: on sheng (SM8550), armada-powerd's performance profile is not
 # applied at boot — scaling_max_freq stays at the last written value (the
 # balanced underclock cap, e.g. 1843200 for policy7) even after switching
 # to Performance. This oneshot waits for cpufreq to appear, then raises
-# each policy to its cpuinfo_max_freq. The hardware ceiling (EPSS table)
-# on sheng is 2956800 for the X3 cluster — not the 3.2 GHz marketing
-# figure, and not changeable in software.
+# each policy to its cpuinfo_max_freq.
+#
+# Frequency model on sheng (verified):
+#   normal max  = 2956800 (2.96 GHz) — from the EPSS LUT
+#   boost max   = 3187200 (3.19 GHz) — in scaling_boost_frequencies;
+#                 boost is DISABLED by default (kernel), so the CPU
+#                 never crosses 2.96 GHz until enabled. Enable it so games
+#                 can hit the X3 boost ceiling (matches the Android /
+#                 Debian behaviour the device shipped with).
 #
 # powerd may later reset the caps when it applies a profile; if so, drop
 # this unit and rely on powerd again. Writing only the max ceiling keeps
@@ -27,3 +33,12 @@ for policy in /sys/devices/system/cpu/cpufreq/policy*; do
     echo "${max}" > "${policy}/scaling_max_freq" 2>/dev/null || true
     echo "unlock ${policy}: scaling_max_freq -> ${max}"
 done
+
+# Enable boost so the X3 cluster can reach 3187200 (3.19 GHz) under load.
+boost_file=/sys/devices/system/cpu/cpufreq/boost
+if [ -f "${boost_file}" ]; then
+    if [ "$(cat "${boost_file}" 2>/dev/null || echo 0)" != "1" ]; then
+        echo 1 > "${boost_file}" 2>/dev/null || true
+        echo "cpufreq boost enabled (X3 boost ceiling 3187200)"
+    fi
+fi
