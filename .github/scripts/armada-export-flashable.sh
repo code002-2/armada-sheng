@@ -23,7 +23,7 @@ REF="${1:?container ref}"
 OUT="${2:?output dir}"
 ROOT_PART="${3:?root partition name}"
 MODE="${4:-quiet}"
-IMG_SIZE="${IMG_SIZE:-8G}"
+IMG_SIZE="${IMG_SIZE:-16G}"
 
 ROOTFS="$OUT/rootfs.img"
 MNT="$OUT/mnt"
@@ -35,6 +35,16 @@ CID=$(podman create "${REF}")
 trap 'podman rm -f "$CID" 2>/dev/null || true' EXIT
 
 echo "==> [2/7] Create ext4 rootfs image (${IMG_SIZE})"
+# Measure the export stream first so IMG_SIZE always fits the content
+# (more than a fixed guess). tar stream bytes ≈ on-disk content + small
+# metadata overhead; add 2G headroom for fsck/xattrs overhead.
+CONTENT_BYTES=$(podman export "$CID" | wc -c 2>/dev/null || echo 0)
+CONTENT_BYTES=$((CONTENT_BYTES + 2 * 1024 * 1024 * 1024))
+GIGS=$(( (CONTENT_BYTES + 1023) / 1024 / 1024 / 1024 ))
+if [ "$GIGS" -gt 0 ] && [ "${IMG_SIZE}" = "16G" ]; then
+  IMG_SIZE="${GIGS}G"
+  echo "==> content ≈ ${CONTENT_BYTES} bytes -> IMG_SIZE=${IMG_SIZE}"
+fi
 truncate -s "$IMG_SIZE" "$ROOTFS"
 mkfs.ext4 -F -L armada "$ROOTFS"
 mount -o loop "$ROOTFS" "$MNT"
