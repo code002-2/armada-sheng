@@ -103,14 +103,8 @@ jobs:
           chmod +x merge-rootfs.sh
           # Windows merge helper (most users are on Windows).
           PARTS=$(ls rootfs.img.part.* | sort)
-          cat > merge-rootfs.bat <<BAT
-@echo off
-chcp 65001 >nul
-echo 正在合并 rootfs.img 分卷...
-copy /b $(echo $PARTS | sed 's/ /+/g') rootfs.img
-echo 合并完成: rootfs.img
-pause
-BAT
+          PARTS_CMD=$(echo "$PARTS" | sed 's/ /+/g')
+          printf '@echo off\nchcp 65001 >nul\necho 正在合并 rootfs.img 分卷...\ncopy /b %s rootfs.img\necho 合并完成: rootfs.img\npause\n' "$PARTS_CMD" > merge-rootfs.bat
           sha256sum rootfs.img.part.* > SHA256SUMS.parts
           ls -lh
           echo "original rootfs.img size: $(stat -c %s rootfs.img 2>/dev/null || echo unknown)"
