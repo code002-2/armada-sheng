@@ -1,0 +1,11 @@
+[Unit]
+Description=Unlock sheng CPU scaling_max_freq (powerd does not apply performance caps on this device)
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/armada-cpufreq-unlock
+
+[Install]
+WantedBy=multi-user.target

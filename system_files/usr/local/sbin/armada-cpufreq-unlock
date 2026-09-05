@@ -1,0 +1,29 @@
+#!/bin/bash
+# Lift scaling_max_freq to the hardware ceiling for every CPU policy.
+#
+# Reason: on sheng (SM8550), armada-powerd's performance profile is not
+# applied at boot — scaling_max_freq stays at the last written value (the
+# balanced underclock cap, e.g. 1843200 for policy7) even after switching
+# to Performance. This oneshot waits for cpufreq to appear, then raises
+# each policy to its cpuinfo_max_freq. The hardware ceiling (EPSS table)
+# on sheng is 2956800 for the X3 cluster — not the 3.2 GHz marketing
+# figure, and not changeable in software.
+#
+# powerd may later reset the caps when it applies a profile; if so, drop
+# this unit and rely on powerd again. Writing only the max ceiling keeps
+# the governor/load behaviour intact.
+set -euo pipefail
+
+for i in $(seq 1 60); do
+    [ -d /sys/devices/system/cpu/cpufreq ] && break
+    sleep 1
+done
+[ -d /sys/devices/system/cpu/cpufreq ] || { echo "cpufreq never appeared" >&2; exit 1; }
+
+for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+    [ -f "${policy}/scaling_max_freq" ] || continue
+    max=$(cat "${policy}/cpuinfo_max_freq" 2>/dev/null || echo "")
+    [ -n "${max}" ] || continue
+    echo "${max}" > "${policy}/scaling_max_freq" 2>/dev/null || true
+    echo "unlock ${policy}: scaling_max_freq -> ${max}"
+done
