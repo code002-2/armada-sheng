@@ -54,11 +54,9 @@ dnf5 -y install --setopt=install_weak_deps=False \
     dracut-config-generic \
     qt6-qttools \
     qt6-qtvirtualkeyboard \
-    qt6-widgets \
-    qt6-dbus \
-    qt6-network \
-    qt6-base \
-    qt6-svg \
+    qt6-qtbase \
+    qt6-qtsvg \
+    qt6-qtwayland \
     zenity \
     seatd \
     cage \
