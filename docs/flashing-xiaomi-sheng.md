@@ -22,7 +22,7 @@
 | 文件 | 说明 |
 |---|---|
 | `boot_b.img` | Android 启动镜像(header-v0):内核 + initramfs + DTB;启动参数 `root=PARTLABEL=userdata rw rootwait` |
-| `rootfs.img` | 22 GB **ext4** 根文件系统,单分区,`x-systemd.growfs`,`/boot` 并入根分区 |
+| `rootfs.img` | **ext4** 根文件系统(构建上限 8 GB,导出时缩至实际大小),单分区,`x-systemd.growfs`,`/boot` 并入根分区 |
 | `flash.sh` | fastboot 包装脚本(校验 → 擦除 dtbo_b → 刷 boot_b → 擦除+刷 userdata → 重启) |
 | `SHA256SUMS` | 上述所有文件的校验和 |
 | `MANIFEST.txt` | 构建元数据(容器引用、内核版本、根分区绑定) |

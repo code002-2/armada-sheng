@@ -87,7 +87,7 @@ build-armada-export.yml: 导出 :sheng-latest → rootfs.img + boot_b.img → Re
 
 ```
 boot_b.img     内核 + initramfs + DTB(header-v0,Android boot image)
-rootfs.img     22 GB ext4 根文件系统(单分区、growfs、/boot 并入根分区)
+rootfs.img     8 GB 上限 ext4 根文件系统(导出时缩至实际大小,单分区、growfs、/boot 并入根分区)
 flash.sh       fastboot 包装脚本(校验 → 擦除 → 刷写 → 重启)
 SHA256SUMS     上述所有文件的校验和
 MANIFEST.txt   构建元数据
