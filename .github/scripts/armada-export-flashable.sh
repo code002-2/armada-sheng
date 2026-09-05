@@ -280,7 +280,7 @@ pad=$(( (sz + 4095) / 4096 * 4096 ))
 e2fsck -f -y "$ROOTFS" >/dev/null 2>&1 || true
 echo "rootfs.img logical size: $(stat -c %s "$ROOTFS") bytes ($(du -h "$ROOTFS" | cut -f1))"
 
-echo "==> [7/7] flash.sh + checksums"
+echo "==> [7/7] flash.sh + flash.bat + checksums"
 cat > "$OUT/flash.sh" <<SH
 #!/bin/bash
 # Flash Armada (exported container, no-OTA) to the Xiaomi Pad 6S Pro.
@@ -296,8 +296,64 @@ fastboot flash ${ROOT_PART} rootfs.img
 fastboot reboot
 SH
 chmod +x "$OUT/flash.sh"
+
+# Windows flash helper (most users are on Windows): .bat with UTF-8 output.
+cat > "$OUT/flash.bat" <<BAT
+@echo off
+chcp 65001 >nul
+title Armada sheng flash (one-click)
+echo.
+echo  ==========================================
+echo   Armada sheng 一键刷入 (单系统, 擦除 Android)
+echo  ==========================================
+echo.
+if not exist fastboot.exe (
+  echo  [错误] 未找到 fastboot.exe, 请先安装 platform-tools:
+  echo         https://developer.android.com/tools/releases/platform-tools
+  echo         并将 fastboot.exe 放到本目录, 或加入 PATH.
+  pause
+  exit /b 1
+)
+if not exist boot_b.img (
+  echo  [错误] 缺少 boot_b.img — 检查是否下载完整.
+  pause
+  exit /b 1
+)
+if not exist rootfs.img (
+  echo  [错误] 缺少 rootfs.img.
+  echo  请先合并分卷: 在 CMD 中执行
+  echo     certutil -f -decodehex rootfs.img.part.aa ... ^(请用官方 merge-rootfs.bat^)
+  echo  或手动:  copy /b rootfs.img.part.aa+rootfs.img.part.ab+...+rootfs.img.part.ah rootfs.img
+  pause
+  exit /b 1
+)
+echo  [1/5] 校验 boot_b.img 与 rootfs.img (SHA256)...
+for %%F in (boot_b.img rootfs.img) do (
+  for /f "tokens=2" %%H in ('certutil -hashfile "%%F" SHA256 ^| findstr /r "^[0-9a-fA-F]*$"') do set "HASH=%%H"
+  echo  %%F SHA256: %HASH%
+)
+echo.
+echo  [2/5] 等待设备连接...
+fastboot devices
+echo  [3/5] 擦除 dtbo_b 并刷入 boot_b...
+fastboot erase dtbo_b
+fastboot flash boot_b boot_b.img
+echo  [4/5] 擦除并刷入 userdata (rootfs.img, 耗时较长请勿断开)...
+fastboot erase userdata
+fastboot flash userdata rootfs.img
+echo  [5/5] 重启...
+fastboot reboot
+echo.
+echo  ✔ 完成! 设备正在重启, 首次启动约需 3-5 分钟.
+echo  登录: 用户 armada  密码 armada  (登录后请立即修改密码)
+echo  提示: 若提示 "waiting for device", 请确认设备已进入 fastboot 模式
+echo        (USB 连接 + 长按 POWER+VOL- 或 adb reboot bootloader).
+pause
+BAT
+echo "flash.bat + flash.sh generated"
+
 cd "$OUT"
-sha256sum boot_b.img rootfs.img flash.sh > SHA256SUMS
+sha256sum boot_b.img rootfs.img flash.sh flash.bat > SHA256SUMS
 {
   echo "Armada (container-exported, no OTA) — ${REF}"
   echo "root: PARTLABEL=${ROOT_PART} ext4 growfs (single partition)"

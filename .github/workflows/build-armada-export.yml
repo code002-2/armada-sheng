@@ -92,7 +92,7 @@ jobs:
           # 1.9 GB chunks are few (~4) and the upload is fast.
           split -b 1900M rootfs.img rootfs.img.part.
           rm -f rootfs.img
-          # Merge script + checksum for the whole original image.
+          # Linux merge helper.
           printf '%s\n' \
             '#!/bin/bash' \
             'set -e' \
@@ -101,9 +101,19 @@ jobs:
             'sha256sum -c SHA256SUMS' \
             'echo "rootfs.img ready. Run: fastboot flash userdata rootfs.img"' > merge-rootfs.sh
           chmod +x merge-rootfs.sh
+          # Windows merge helper (most users are on Windows).
+          PARTS=$(ls rootfs.img.part.* | sort)
+          cat > merge-rootfs.bat <<BAT
+@echo off
+chcp 65001 >nul
+echo 正在合并 rootfs.img 分卷...
+copy /b $(echo $PARTS | sed 's/ /+/g') rootfs.img
+echo 合并完成: rootfs.img
+pause
+BAT
           sha256sum rootfs.img.part.* > SHA256SUMS.parts
           ls -lh
-          echo "original rootfs.img size: $(cat MANIFEST.txt | grep -o 'rootfs.*' || true)"
+          echo "original rootfs.img size: $(stat -c %s rootfs.img 2>/dev/null || echo unknown)"
       - name: Create Release
         if: ${{ inputs.publish_release }}
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
@@ -118,11 +128,21 @@ jobs:
             **Files:**
             - `boot_b.img` — kernel + initramfs + DTB (Android header-v0)
             - `rootfs.img.part.*` — ext4 rootfs (shrunk to actual size) split into ~1.9 GB chunks (GitHub caps single files at 2 GB)
-            - `merge-rootfs.sh` — merges the chunks back into `rootfs.img` + verifies checksums
-            - `flash.sh` — fastboot wrapper (erase dtbo_b → flash boot_b → erase+flash userdata → reboot)
+            - `merge-rootfs.sh` — Linux: merges the chunks back into `rootfs.img` + verifies checksums
+            - `merge-rootfs.bat` — **Windows**: merges the chunks (`copy /b`) — 双击即可
+            - `flash.sh` — Linux/Mac: fastboot wrapper (erase dtbo_b → flash boot_b → erase+flash userdata → reboot)
+            - `flash.bat` — **Windows**: 一键刷入脚本 (double-click) — 需要 platform-tools 的 fastboot.exe
             - `MANIFEST.txt` — build metadata
 
             **Flash:**
+
+            **Windows (一键):**
+            1. 下载全部文件,解压到同一目录
+            2. 双击 `merge-rootfs.bat` → 生成 rootfs.img
+            3. 设备进入 fastboot (USB + 长按 POWER+VOL-;或 adb reboot bootloader)
+            4. 双击 `flash.bat` → 自动刷写并重启
+
+            **Linux/Mac:**
             ```
             ./merge-rootfs.sh          # produces rootfs.img (or: cat rootfs.img.part.* > rootfs.img)
             fastboot erase dtbo_b
