@@ -16,6 +16,7 @@ run_step ./20-install-kernel.sh
 run_step ./30-install-steam-session.sh
 run_step ./40-vendor-system-files.sh
 run_step ./45-install-decky-plugins.sh
+run_step ./48-sheng-extra-features.sh
 run_step ./50-create-user.sh
 run_step ./55-generate-initramfs.sh
 run_step ./60-set-default-target.sh
