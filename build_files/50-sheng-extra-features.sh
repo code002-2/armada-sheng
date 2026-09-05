@@ -38,7 +38,7 @@ unpack_deb() {  # unpack_deb <debpath> <destdir>
 
 # ---------- xiaomi-mipps-auth (fast charge) ----------
 echo "==> xiaomi-mipps-auth (MiPPS 120W fast charge)"
-unpack_deb "$(fetch_deb xiaomi-mipps-auth 0.21 xiaomi-mipps-auth.deb "${EXTRA}")" "${EXTRA}/mipps" || true
+unpack_deb "$(fetch_deb xiaomi-mipps-auth 0.21 xiaomi-mipps-auth_0.21_arm64.deb "${EXTRA}")" "${EXTRA}/mipps" || true
 if [ -f "${EXTRA}/mipps/usr/libexec/xiaomi-mipps-auth" ]; then
     install -m 0755 "${EXTRA}/mipps/usr/libexec/xiaomi-mipps-auth" /usr/libexec/xiaomi-mipps-auth
     install -m 0644 "${EXTRA}/mipps/usr/lib/systemd/system/xiaomi-mipps-auth.service" /usr/lib/systemd/system/ 2>/dev/null || true
@@ -60,7 +60,7 @@ fi
 
 # ---------- xiaomi-charger-mode (charger display) ----------
 echo "==> xiaomi-charger-mode (charger boot display)"
-unpack_deb "$(fetch_deb xiaomi-charger-mode 0.20 xiaomi-charger-mode.deb "${EXTRA}")" "${EXTRA}/charger" || true
+unpack_deb "$(fetch_deb xiaomi-charger-mode 0.20 xiaomi-charger-mode_0.20_arm64.deb "${EXTRA}")" "${EXTRA}/charger" || true
 if [ -f "${EXTRA}/charger/usr/libexec/xiaomi-charger-mode" ]; then
     install -m 0755 "${EXTRA}/charger/usr/libexec/xiaomi-charger-mode" /usr/libexec/xiaomi-charger-mode
     install -m 0644 "${EXTRA}/charger/usr/lib/systemd/system/xiaomi-charger-mode.service" /usr/lib/systemd/system/ 2>/dev/null || true
@@ -78,7 +78,7 @@ fi
 
 # ---------- xiaomi-pen-status (Focus Pen tray) ----------
 echo "==> xiaomi-pen-status (Focus Pen tray)"
-unpack_deb "$(fetch_deb xiaomi-pen-status v0.2.3 xiaomi-pen-status.deb "${EXTRA}")" "${EXTRA}/pen" || true
+unpack_deb "$(fetch_deb xiaomi-pen-status v0.2.3 xiaomi-pen-status_0.2.3_arm64.deb "${EXTRA}")" "${EXTRA}/pen" || true
 if [ -f "${EXTRA}/pen/usr/bin/xiaomi-pen-status" ]; then
     install -m 0755 "${EXTRA}/pen/usr/bin/xiaomi-pen-status" /usr/bin/xiaomi-pen-status
     find "${EXTRA}/pen/usr/share" -type f 2>/dev/null | while read -r f; do
@@ -91,7 +91,7 @@ fi
 
 # ---------- xiaomi-sheng-keyboard-helper ----------
 echo "==> xiaomi-sheng-keyboard-helper (official keyboard)"
-unpack_deb "$(fetch_deb xiaomi-sheng-keyboard-helper v0.2.0 xiaomi-sheng-keyboard-helper.deb "${EXTRA}")" "${EXTRA}/kb" || true
+unpack_deb "$(fetch_deb xiaomi-sheng-keyboard-helper v0.2.0 xiaomi-sheng-keyboard-helper_0.2.0_arm64.deb "${EXTRA}")" "${EXTRA}/kb" || true
 if [ -f "${EXTRA}/kb/usr/libexec/xiaomi-sheng-keyboard-helper" ]; then
     install -m 0755 "${EXTRA}/kb/usr/libexec/xiaomi-sheng-keyboard-helper" /usr/libexec/xiaomi-sheng-keyboard-helper
     [ -f "${EXTRA}/kb/usr/lib/systemd/system/xiaomi-sheng-keyboard-helper-angle.service" ] && \
