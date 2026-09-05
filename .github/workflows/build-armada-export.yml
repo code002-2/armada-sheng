@@ -88,7 +88,8 @@ jobs:
         run: |
           set -euxo pipefail
           cd output
-          # 1.9 GB chunks keep every part comfortably under the 2 GB cap.
+          # rootfs.img has been shrunk to its actual size (resize2fs -M), so
+          # 1.9 GB chunks are few (~4) and the upload is fast.
           split -b 1900M rootfs.img rootfs.img.part.
           rm -f rootfs.img
           # Merge script + checksum for the whole original image.
@@ -102,6 +103,7 @@ jobs:
           chmod +x merge-rootfs.sh
           sha256sum rootfs.img.part.* > SHA256SUMS.parts
           ls -lh
+          echo "original rootfs.img size: $(cat MANIFEST.txt | grep -o 'rootfs.*' || true)"
       - name: Create Release
         if: ${{ inputs.publish_release }}
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
@@ -115,7 +117,7 @@ jobs:
 
             **Files:**
             - `boot_b.img` — kernel + initramfs + DTB (Android header-v0)
-            - `rootfs.img.part.*` — 22 GB ext4 rootfs split into chunks (GitHub caps single files at 2 GB)
+            - `rootfs.img.part.*` — ext4 rootfs (shrunk to actual size) split into ~1.9 GB chunks (GitHub caps single files at 2 GB)
             - `merge-rootfs.sh` — merges the chunks back into `rootfs.img` + verifies checksums
             - `flash.sh` — fastboot wrapper (erase dtbo_b → flash boot_b → erase+flash userdata → reboot)
             - `MANIFEST.txt` — build metadata

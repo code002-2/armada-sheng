@@ -249,13 +249,26 @@ python3 "$(dirname "$0")/../../build_files/vendor/mkbootimg/mkbootimg.py" \
 rm -f /tmp/kernel.gz
 echo "boot cmdline: $CMDLINE"
 
-echo "==> [6/7] Unmount + align + fsck"
+echo "==> [6/7] Unmount + shrink to actual size + align + fsck"
 sync
 umount "$MNT" || true
+# Shrink the filesystem to the actual used size (resize2fs -M), then truncate
+# the image file to match. The 22G default was only a ceiling; shipping a
+# 22G logical image means ~12 split chunks / ~7G upload for ~6.6G of real
+# data. resize2fs -M loses the growfs headroom, so re-enable it afterwards
+# on first boot via fstab's x-systemd.growfs and keep `resize2fs -M`'d
+# minimum as the floor. (growfs runs at boot, up to the partition size.)
+e2fsck -f -y "$ROOTFS" >/dev/null 2>&1 || true
+if command -v resize2fs >/dev/null 2>&1; then
+  echo "--- shrink to actual size ---"
+  resize2fs -M "$ROOTFS" 2>&1 | tail -2 || true
+fi
+# Align the file back up to 4096 and cap unneeded preallocation.
 sz=$(stat -c %s "$ROOTFS")
 pad=$(( (sz + 4095) / 4096 * 4096 ))
 [ "$pad" -gt "$sz" ] && truncate -s "$pad" "$ROOTFS"
 e2fsck -f -y "$ROOTFS" >/dev/null 2>&1 || true
+echo "rootfs.img logical size: $(stat -c %s "$ROOTFS") bytes ($(du -h "$ROOTFS" | cut -f1))"
 
 echo "==> [7/7] flash.sh + checksums"
 cat > "$OUT/flash.sh" <<SH
