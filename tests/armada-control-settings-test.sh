@@ -28,6 +28,7 @@ control.SLEEP_CONFIG = work / "sleep.conf"
 control.NM_IGNORE_SLEEP = work / "ignore-sleep"
 control.MEM_SLEEP_PATH = work / "mem_sleep"
 control.MEM_SLEEP_PATH.write_text("[s2idle] deep\n")
+control.BOTTOM_SCREEN_BRIGHTNESS_PATH = work / "bottom-screen-brightness"
 control.BACKLIGHT_ROOT = work / "backlight"
 secondary_backlight = control.BACKLIGHT_ROOT / "secondary"
 secondary_backlight.mkdir(parents=True)
@@ -98,6 +99,21 @@ assert control.action_get_bottom_screen_brightness({}) == {
 }
 assert control.action_set_bottom_screen_brightness({"brightness": 40}) == {"brightness": 40}
 assert (secondary_backlight / "brightness").read_text() == "102\n"
+assert control.BOTTOM_SCREEN_BRIGHTNESS_PATH.read_text() == "40\n"
+
+# Driver and session changes can reset the backlight; the saved preference wins.
+(secondary_backlight / "brightness").write_text("255\n")
+control.restore_bottom_screen_brightness()
+assert (secondary_backlight / "brightness").read_text() == "102\n"
+
+# Missing and malformed preferences leave the hardware's current value alone.
+control.BOTTOM_SCREEN_BRIGHTNESS_PATH.unlink()
+(secondary_backlight / "brightness").write_text("128\n")
+control.restore_bottom_screen_brightness()
+assert (secondary_backlight / "brightness").read_text() == "128\n"
+control.BOTTOM_SCREEN_BRIGHTNESS_PATH.write_text("invalid\n")
+control.restore_bottom_screen_brightness()
+assert (secondary_backlight / "brightness").read_text() == "128\n"
 
 secondary_backlight_4096 = control.BACKLIGHT_ROOT / "secondary-4096"
 secondary_backlight_4096.mkdir()
@@ -106,6 +122,7 @@ secondary_backlight_4096.mkdir()
 control.device_env = lambda: {"ARMADA_SECONDARY_BACKLIGHT": "secondary-4096"}
 assert control.action_set_bottom_screen_brightness({"brightness": 25}) == {"brightness": 25}
 assert (secondary_backlight_4096 / "brightness").read_text() == "1024\n"
+assert control.BOTTOM_SCREEN_BRIGHTNESS_PATH.read_text() == "25\n"
 
 for invalid in (True, "40", -1, 101):
     try:
@@ -183,6 +200,9 @@ except RuntimeError:
 else:
     raise AssertionError("unavailable s2idle sleep setting was accepted")
 PYEOF
+
+grep -Fq 'After=armada-device-quirks.service inputplumber.service armada-powerd.service' \
+    "$ROOT/system_files/usr/lib/systemd/system/armada-control.service"
 
 DEVICE_ENV="$ROOT/system_files/usr/libexec/armada/device-env"
 DEVICE_QUIRKS="$ROOT/system_files/usr/libexec/armada/device-quirks"
