@@ -170,7 +170,6 @@ export function Settings({ config, setConfig }: {
                 min={0}
                 max={100}
                 step={1}
-                disabled={!config.bottomScreenEnabled}
                 onChange={setBottomScreenBrightness}
               />
             )}
