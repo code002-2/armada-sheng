@@ -201,7 +201,7 @@ if ls "$MNT/usr/lib/modules/$KVER/kernel/drivers/usb/gadget" 2>/dev/null | grep 
   mkdir -p "$MNT/etc/systemd/system" "$MNT/usr/local/sbin"
   cat > "$MNT/etc/systemd/system/armada-usbgadget.service" <<'EOF'
 [Unit]
-Description=USB Ethernet gadget (ECM) for host access
+Description=USB Ethernet gadget (RNDIS) for host access
 After=network.target
 
 [Service]
@@ -224,8 +224,10 @@ up() {
   mkdir -p "$GADGET/strings/0x409"; echo armada > "$GADGET/strings/0x409/manufacturer"
   echo armada > "$GADGET/strings/0x409/product"
   mkdir -p "$GADGET/configs/c.1/strings/0x409"; echo armada > "$GADGET/configs/c.1/strings/0x409/configuration"
-  mkdir -p "$GADGET/functions/ecm.usb0"
-  ln -s "$GADGET/functions/ecm.usb0" "$GADGET/configs/c.1/"
+  # RNDIS: Windows enumerates this as a native network adapter (no driver
+  # install); ECM is not supported by Windows.
+  mkdir -p "$GADGET/functions/rndis.usb0"
+  ln -s "$GADGET/functions/rndis.usb0" "$GADGET/configs/c.1/"
   ls /sys/class/udc > "$GADGET/UDC"
   ip link set usb0 up 2>/dev/null || true
   ip addr add 192.168.42.1/24 dev usb0 2>/dev/null || true
