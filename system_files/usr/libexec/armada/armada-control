@@ -39,6 +39,8 @@ DESKTOP_SESSION_PATH = Path("/etc/armada/desktop-session")
 DESKTOP_MODES = {"desktop", "mobile"}
 BOTTOM_SCREEN_SERVICE = "armada-bottom-screen.service"
 GAME_MODE_SERVICE = "gamescope-session-plus@steam.service"
+BOTTOM_SCREEN_BRIGHTNESS_PATH = Path("/etc/armada/bottom-screen-brightness")
+BOTTOM_SCREEN_BRIGHTNESS_RESTORE_INTERVAL = 2
 BACKLIGHT_ROOT = Path("/sys/class/backlight")
 DEVICE_ENV = os.environ.get("ARMADA_DEVICE_ENV", "/usr/libexec/armada/device-env")
 CONFIG_PATHS = {
@@ -247,8 +249,7 @@ def secondary_backlight():
     return path
 
 
-def bottom_screen_brightness():
-    path = secondary_backlight()
+def read_backlight_brightness(path):
     if path is None:
         return None
     try:
@@ -259,6 +260,49 @@ def bottom_screen_brightness():
     if maximum <= 0:
         return None
     return max(0, min(100, round(brightness * 100 / maximum)))
+
+
+def bottom_screen_brightness():
+    return read_backlight_brightness(secondary_backlight())
+
+
+def saved_bottom_screen_brightness():
+    try:
+        brightness = int(BOTTOM_SCREEN_BRIGHTNESS_PATH.read_text().strip())
+    except (OSError, ValueError):
+        return None
+    return brightness if 0 <= brightness <= 100 else None
+
+
+def apply_bottom_screen_brightness(brightness, path=None):
+    path = path or secondary_backlight()
+    if path is None:
+        raise RuntimeError("bottom-screen brightness is not supported on this device")
+    try:
+        maximum = int((path / "max_brightness").read_text().strip())
+        if maximum <= 0:
+            raise ValueError
+        value = round(brightness * maximum / 100)
+        (path / "brightness").write_text(f"{value}\n")
+    except (OSError, ValueError) as error:
+        raise RuntimeError("could not update bottom-screen brightness") from error
+
+    applied = read_backlight_brightness(path)
+    if applied is None:
+        raise RuntimeError("could not read bottom-screen brightness")
+    return applied
+
+
+def restore_bottom_screen_brightness(path=None):
+    brightness = saved_bottom_screen_brightness()
+    path = path or secondary_backlight()
+    if brightness is None or read_backlight_brightness(path) == brightness:
+        return
+    try:
+        apply_bottom_screen_brightness(brightness, path)
+    except RuntimeError:
+        # The backlight may disappear temporarily while display sessions switch.
+        pass
 
 
 def abl_version():
@@ -383,21 +427,8 @@ def action_set_bottom_screen_brightness(request):
     if not isinstance(brightness, int) or isinstance(brightness, bool) or not 0 <= brightness <= 100:
         raise ValueError("invalid bottom-screen brightness")
 
-    path = secondary_backlight()
-    if path is None:
-        raise RuntimeError("bottom-screen brightness is not supported on this device")
-    try:
-        maximum = int((path / "max_brightness").read_text().strip())
-        if maximum <= 0:
-            raise ValueError
-        value = round(brightness * maximum / 100)
-        (path / "brightness").write_text(f"{value}\n")
-    except (OSError, ValueError) as error:
-        raise RuntimeError("could not update bottom-screen brightness") from error
-
-    applied = bottom_screen_brightness()
-    if applied is None:
-        raise RuntimeError("could not read bottom-screen brightness")
+    applied = apply_bottom_screen_brightness(brightness)
+    atomic_write(BOTTOM_SCREEN_BRIGHTNESS_PATH, f"{applied}\n")
     return {"brightness": applied}
 
 
@@ -765,6 +796,8 @@ def main():
     SOCKET.parent.mkdir(parents=True, exist_ok=True)
     selector = selectors.DefaultSelector()
     PERF = PerfManager(selector)
+    bottom_screen_backlight = secondary_backlight()
+    restore_bottom_screen_brightness(bottom_screen_backlight)
     # Root-only socket; config rendering still belongs to the plugin client.
     control = bind_socket(SOCKET, 0o600)
     session = bind_socket(SESSION_SOCKET, 0o660, group="armada")
@@ -780,8 +813,9 @@ def main():
     selector.register(control, selectors.EVENT_READ, accept_control)
     selector.register(session, selectors.EVENT_READ, accept_session)
     while True:
-        for key, _events in selector.select():
+        for key, _events in selector.select(BOTTOM_SCREEN_BRIGHTNESS_RESTORE_INTERVAL):
             key.data()
+        restore_bottom_screen_brightness(bottom_screen_backlight)
 
 
 def handle(request):

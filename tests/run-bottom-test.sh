@@ -77,13 +77,22 @@ inner_args="$tmp/inner-args"
 inner_env="$tmp/inner-env"
 printf '%s\n' \
     '#!/usr/bin/env bash' \
-    'printf '\''%s\n'\'' "${XDG_CURRENT_DESKTOP-unset}" "${XDG_CONFIG_DIRS-unset}" "${DISABLE_GAMESCOPE_WSI-unset}" "${GAMESCOPE_WAYLAND_DISPLAY-unset}" "${GAMESCOPE_LIMITER_FILE-unset}" >"$INNER_ENV"' \
+    '[[ "$(readlink "$XDG_CONFIG_HOME/plasmashellrc")" == plasmashellrc.mobile ]] || exit 1' \
+    '[[ -f "$XDG_CONFIG_HOME/plasmashellrc.mobile" ]] || exit 1' \
+    'printf '\''%s\n'\'' "${XDG_CURRENT_DESKTOP-unset}" "${XDG_CONFIG_DIRS-unset}" "${QT_QPA_PLATFORMTHEME-unset}" "${QT_QUICK_CONTROLS_STYLE-unset}" "${QT_QUICK_CONTROLS_MOBILE-unset}" "${PLASMA_INTEGRATION_USE_PORTAL-unset}" "${PLASMA_PLATFORM-unset}" "${DISABLE_GAMESCOPE_WSI-unset}" "${GAMESCOPE_WAYLAND_DISPLAY-unset}" "${GAMESCOPE_LIMITER_FILE-unset}" >"$INNER_ENV"' \
     'printf '\''%s\0'\'' "$@" >"$INNER_ARGS"' \
     >"$dbus_run_session"
 chmod +x "$dbus_run_session"
+config_dir="$tmp/config"
+mkdir -p "$config_dir"
+printf 'saved desktop settings\n' >"$config_dir/plasmashellrc.desktop"
+printf 'saved mobile settings\n' >"$config_dir/plasmashellrc.mobile"
+ln -s plasmashellrc.desktop "$config_dir/plasmashellrc"
+run_bottom_session() {
 env \
     DISPLAY=gamescope-1 \
     HOME=/test/home \
+    XDG_CONFIG_HOME="$config_dir" \
     XDG_CONFIG_DIRS=/test/config \
     DISABLE_GAMESCOPE_WSI=0 \
     GAMESCOPE_WAYLAND_DISPLAY=gamescope-1 \
@@ -93,6 +102,8 @@ env \
     INNER_ARGS="$inner_args" \
     INNER_ENV="$inner_env" \
     "$BOTTOM_SESSION"
+}
+run_bottom_session
 mapfile -d '' -t actual <"$inner_args"
 expected=(
     /test/kwin_wayland
@@ -105,9 +116,40 @@ expected=(
 for i in "${!expected[@]}"; do
     [[ "${actual[$i]}" == "${expected[$i]}" ]]
 done
-[[ "$(<"$inner_env")" == $'KDE\n/test/home/.config/plasma-mobile:/etc/xdg:/test/config\n1\nunset\nunset' ]]
+[[ "$(<"$inner_env")" == $'KDE\n/test/home/.config/plasma-mobile:/etc/xdg:/test/config\nKDE\norg.kde.breeze\ntrue\n1\nphone:handset\n1\nunset\nunset' ]]
 [[ ! " ${actual[*]} " =~ ' --width ' ]]
 [[ ! " ${actual[*]} " =~ ' --height ' ]]
+
+# Starting from Desktop or restarting Mobile must preserve both saved configs.
+run_bottom_session
+[[ "$(<"$config_dir/plasmashellrc.desktop")" == 'saved desktop settings' ]]
+[[ "$(<"$config_dir/plasmashellrc.mobile")" == 'saved mobile settings' ]]
+
+# Older installations may still have a regular active desktop config.
+config_dir="$tmp/legacy-config"
+mkdir -p "$config_dir"
+printf 'legacy desktop settings\n' >"$config_dir/plasmashellrc"
+run_bottom_session
+[[ "$(<"$config_dir/plasmashellrc.desktop")" == 'legacy desktop settings' ]]
+[[ ! -s "$config_dir/plasmashellrc.mobile" ]]
+
+# A fresh profile must also be ready before Plasma launches.
+config_dir="$tmp/fresh-config"
+run_bottom_session
+[[ ! -s "$config_dir/plasmashellrc.mobile" ]]
+
+# Refuse ambiguous migration rather than discarding either desktop config.
+config_dir="$tmp/conflicting-config"
+mkdir -p "$config_dir"
+printf 'active settings\n' >"$config_dir/plasmashellrc"
+printf 'saved settings\n' >"$config_dir/plasmashellrc.desktop"
+if run_bottom_session 2>"$tmp/config-conflict"; then
+    echo 'conflicting desktop configs unexpectedly succeeded' >&2
+    exit 1
+fi
+grep -q 'refusing to overwrite' "$tmp/config-conflict"
+[[ "$(<"$config_dir/plasmashellrc")" == 'active settings' ]]
+[[ "$(<"$config_dir/plasmashellrc.desktop")" == 'saved settings' ]]
 
 if env -u DISPLAY "$BOTTOM_SESSION" 2>"$tmp/no-display"; then
     echo 'bottom session started without DISPLAY' >&2
