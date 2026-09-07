@@ -143,6 +143,8 @@ sheng 路径说明:
 
 ## 致谢
 
+claude codex deepseek harness
+
 项目上游见[项目致谢页](https://armadaos.dev/project/credits/)。`sheng` 的
 内核、固件与 ALSA UCM 配置源自 [ianchb](https://github.com/ianchb)
 (sm8550-mainline / sheng-firmware / xiaomi-sheng-thp)。
