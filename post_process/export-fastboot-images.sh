@@ -290,6 +290,40 @@ if [ "${P3_PAD}" -gt "${P3_BYTES}" ]; then
     echo "==> linux.img padded to ${P3_PAD} bytes (4096-aligned)"
 fi
 
+# ---------------------------------------------------------------------------
+# 5b. Shrink the root image to its actual content.
+#
+# BIB sizes the root partition from the image's declared minsize with slack, so
+# the whole-partition dd above is far larger than the payload (25 GB against
+# roughly 10 GB of real data). resize2fs -M reclaims the difference, which
+# halves both the release download and the fastboot write.
+#
+# The filesystem keeps its UUID, so the baked fstab and the root= karg are
+# unaffected, and the device grows it back to the real partition size on first
+# boot via x-systemd.growfs. A failure here is not fatal: we keep the
+# full-size image, which still boots.
+# ---------------------------------------------------------------------------
+echo "==> Shrinking linux.img to its actual content"
+if sudo e2fsck -f -y "${OUT}/linux.img" >/dev/null 2>&1; then
+    sudo resize2fs -M "${OUT}/linux.img" 2>&1 | tail -2 || true
+    SHRUNK_BLOCKS=$(sudo dumpe2fs -h "${OUT}/linux.img" 2>/dev/null | sed -n 's/^Block count:[[:space:]]*//p')
+    SHRUNK_BS=$(sudo dumpe2fs -h "${OUT}/linux.img" 2>/dev/null | sed -n 's/^Block size:[[:space:]]*//p')
+    if [ -n "${SHRUNK_BLOCKS}" ] && [ -n "${SHRUNK_BS}" ]; then
+        SHRUNK_PAD=$(( ((SHRUNK_BLOCKS * SHRUNK_BS) + 4095) / 4096 * 4096 ))
+        if [ "${SHRUNK_PAD}" -lt "${P3_BYTES}" ]; then
+            sudo truncate -s "${SHRUNK_PAD}" "${OUT}/linux.img"
+            echo "==> linux.img shrunk to ${SHRUNK_PAD} bytes ($((SHRUNK_PAD / 1024 / 1024)) MiB)"
+            sudo e2fsck -f -y "${OUT}/linux.img" >/dev/null 2>&1 || true
+        else
+            echo "==> linux.img already minimal (${SHRUNK_PAD} bytes)"
+        fi
+    else
+        echo "WARN: could not read the shrunk size; keeping the full-size image"
+    fi
+else
+    echo "WARN: e2fsck failed; keeping the full-size image"
+fi
+
 mv "${WORK}/boot_b.img" "${OUT}/boot_b.img"
 
 sudo umount "${WORK}/bootfs" 2>/dev/null || true
@@ -382,6 +416,57 @@ fastboot reboot
 echo "Done. First boot takes a few minutes (ostree deployment initializes)."
 SH
 chmod 0755 "${OUT}/flash.sh"
+
+# The same thing for Windows, where most people will actually flash this: the
+# tablet has to be in fastboot on a PC, and requiring git-bash there is a
+# pointless extra hop. Written with CRLF line endings (sed below) because cmd
+# chokes on bare-LF batch files.
+cat > "${OUT}/flash.bat" <<'BAT'
+@echo off
+setlocal
+cd /d "%~dp0"
+
+echo Armada (Xiaomi Pad 6S Pro / sheng) - internal storage flash
+echo.
+echo WARNING: this ERASES the userdata partition (Android data). Back it up first.
+echo.
+
+where fastboot >nul 2>nul
+if errorlevel 1 (
+    echo ERROR: fastboot.exe not found in PATH.
+    echo Install Android platform-tools, then re-run this script.
+    exit /b 1
+)
+
+echo [1/3] Verifying image checksums...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$bad=0; foreach ($l in Get-Content SHA256SUMS) { $p = $l -split '\s+'; if ($p.Count -ge 2) { $f = $p[-1]; if (Test-Path $f) { $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if ($h -ne $p[0]) { Write-Host ('MISMATCH: ' + $f) -ForegroundColor Red; $bad = 1 } else { Write-Host ('OK: ' + $f) } } } }; if ($bad) { exit 1 }"
+if errorlevel 1 (
+    echo ERROR: checksum verification failed - re-download the images.
+    exit /b 1
+)
+
+echo [2/3] Flashing boot_b (Android boot image)...
+fastboot erase dtbo_b
+fastboot flash boot_b boot_b.img
+if errorlevel 1 goto fail
+
+echo [3/3] Flashing userdata (ext4 rootfs with /boot inside; this takes a while)...
+fastboot flash userdata linux.img
+if errorlevel 1 goto fail
+
+echo Rebooting...
+fastboot reboot
+echo Done. First boot takes a few minutes while ostree initializes the deployment.
+exit /b 0
+
+:fail
+echo.
+echo ERROR: fastboot reported a failure. The device is likely still in fastboot mode;
+echo fix the problem and re-run this script.
+exit /b 1
+BAT
+sed -i 's/$/\r/' "${OUT}/flash.bat"
+chmod 0644 "${OUT}/flash.bat"
 
 # The images were written by root (loop devices); hand them to the caller.
 if [ "$(id -u)" != 0 ]; then
