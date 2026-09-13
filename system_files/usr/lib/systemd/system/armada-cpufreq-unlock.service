@@ -5,7 +5,7 @@ After=systemd-modules-load.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/sbin/armada-cpufreq-unlock
+ExecStart=/usr/bin/armada-cpufreq-unlock
 
 [Install]
 WantedBy=multi-user.target
