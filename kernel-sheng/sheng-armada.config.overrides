@@ -107,3 +107,17 @@ CONFIG_NETFILTER_XT_MATCH_MARK=m
 CONFIG_IP_ADVANCED_ROUTER=y
 CONFIG_IP_MULTIPLE_TABLES=y
 CONFIG_WIREGUARD=m
+
+# ============== Gunyah ==============
+# Gunyah watchdog: SMCCC-based watchdog service provided by the Gunyah
+# hypervisor (Qualcomm's type-1 hypervisor on recent SoCs). The sheng
+# config has the symbol but leaves it off; the prerequisites are already
+# set (WATCHDOG=y, WATCHDOG_CORE=y, HAVE_ARM_SMCCC=y). The watchdog
+# registers only when the firmware exposes the service, so enabling it is
+# harmless on a non-Gunyah boot.
+#
+# NOTE: only the watchdog is available in this tree — the full Gunyah
+# driver stack (drivers/virt/gunyah: gh_ctrl/gh_rm/gh_msgq, ...) is not
+# present in ianchb/sm8550-mainline @ sheng-7.2.2, so hypervisor VM
+# management is not enabled by this fragment.
+CONFIG_GUNYAH_WATCHDOG=m
