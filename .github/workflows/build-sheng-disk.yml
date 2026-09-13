@@ -234,6 +234,40 @@ jobs:
           EOF
           cat system_files/usr/lib/bootc/install/00-armada.toml
 
+      - name: Configure bootc install for the vendor-ABL boot chain
+        run: |
+          set -euxo pipefail
+          # sheng boots from a baked Android boot image in the vendor's boot_b
+          # partition through the ORIGINAL Xiaomi ABL: no UEFI, no ESP, no GRUB.
+          # The image is not booted by anything bootc installs, and the on-device
+          # regen (armada-bootimg-update, wired up by the sheng device profile via
+          # ARMADA_BOOTIMG_OUT) rewrites the boot partition itself -- that is what
+          # makes a bootc upgrade take effect. So:
+          #
+          #   bootloader = "none"   bootc install must not run bootupd, and ostree
+          #                         must not re-run grub2-mkconfig on every update.
+          #                         ostree still writes /boot/loader/entries; that
+          #                         is the contract bootc, aboot and ROCKNIX ABL
+          #                         all rely on.
+          #   boot-mount-spec = ""  BIB always lays down a separate /boot
+          #                         partition, and bootc then writes BOTH a
+          #                         "boot=UUID=<that partition>" karg and a
+          #                         matching /boot line in the deployment's
+          #                         /etc/fstab. post_process/
+          #                         export-fastboot-images.sh merges /boot into
+          #                         the root, so that partition is never flashed:
+          #                         systemd waits for a filesystem that does not
+          #                         exist and the boot dies at the splash
+          #                         ("Preparing Armada"). An empty mount spec is
+          #                         bootc's documented way to omit both
+          #                         (bootc-dev/bootc#1441).
+          cat > system_files/usr/lib/bootc/install/10-sheng-boot.toml <<'EOF'
+          [install]
+          bootloader = "none"
+          boot-mount-spec = ""
+          EOF
+          cat system_files/usr/lib/bootc/install/10-sheng-boot.toml
+
       - name: Build Armada container with the sheng kernel
         id: container
         env:

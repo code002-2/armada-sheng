@@ -239,8 +239,37 @@ fi
 # consistent for anything that inspects the raw image.
 sudo mkdir -p "${WORK}/rootfs/etc"
 printf '%s\n' "${ROOT_FSTAB_LINE}" | sudo tee "${WORK}/rootfs/etc/fstab" >/dev/null
-echo "==> fstab baked (root UUID=${ROOT_UUID}; ext4, growfs; no /boot entry -merged into root)"
+echo "==> fstab baked (root UUID=${ROOT_UUID}; ext4, growfs; no /boot entry - merged into root)"
 sudo sync
+
+# ---------------------------------------------------------------------------
+# 4b. Pin ostree's bootloader backend to "none".
+#
+# The sheng boot chain is: vendor ABL -> baked Android boot image in boot_b ->
+# this rootfs. Nothing bootc installs is ever executed, and ostree must not
+# try to re-run grub2-mkconfig on the next update: BIB installs GRUB onto the
+# ESP because the image ships bootupd, which would leave this at grub. With
+# "none" ostree still writes /boot/loader/entries -- the contract the on-device
+# regen (armada-bootimg-update) reads to rebuild boot_b.img.
+#
+# The container image also sets this via [install] bootloader = "none"
+# (build-sheng-disk.yml); this is the offline backstop for an image whose BIB
+# run ignored it.
+# ---------------------------------------------------------------------------
+OSTREE_REPO_CFG="${WORK}/rootfs/ostree/repo/config"
+if [ ! -f "${OSTREE_REPO_CFG}" ]; then
+    echo "ERROR: ${OSTREE_REPO_CFG} missing; not an ostree image?" >&2
+    sudo find "${WORK}/rootfs/ostree" -maxdepth 3 >&2 || true
+    exit 1
+fi
+if sudo grep -qE '^[[:space:]]*bootloader[[:space:]]*=' "${OSTREE_REPO_CFG}"; then
+    sudo sed -i -E 's|^[[:space:]]*bootloader[[:space:]]*=.*|bootloader=none|' "${OSTREE_REPO_CFG}"
+elif sudo grep -qE '^\[sysroot\]' "${OSTREE_REPO_CFG}"; then
+    sudo sed -i -E '/^\[sysroot\]/a bootloader=none' "${OSTREE_REPO_CFG}"
+else
+    printf '\n[sysroot]\nbootloader=none\n' | sudo tee -a "${OSTREE_REPO_CFG}" >/dev/null
+fi
+echo "==> ostree bootloader backend: $(sudo grep -E 'bootloader' "${OSTREE_REPO_CFG}" || echo '(unset!)')"
 
 # ---------------------------------------------------------------------------
 # 5. Export the root filesystem (whole-partition dd, no conv=sparse: fastboot
