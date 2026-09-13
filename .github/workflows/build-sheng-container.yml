@@ -73,9 +73,15 @@ jobs:
       - name: Select kernel source
         run: |
           set -euxo pipefail
-          sed -i "s|^KERNEL_REPO=.*|KERNEL_REPO=${{ inputs.kernel_repo }}|" kernel-sheng/BUILD.env
-          sed -i "s|^KERNEL_BRANCH=.*|KERNEL_BRANCH=${{ inputs.kernel_branch }}|" kernel-sheng/BUILD.env
-          sed -i "s|^KERNEL_CONFIG=.*|KERNEL_CONFIG=${{ inputs.kernel_config }}|" kernel-sheng/BUILD.env
+          # inputs.* are empty on schedule triggers; fall back to the defaults.
+          KREPO="${{ inputs.kernel_repo }}"; KBRANCH="${{ inputs.kernel_branch }}"; KCONF="${{ inputs.kernel_config }}"
+          KREPO="${KREPO:-https://github.com/ianchb/sm8550-mainline}"
+          KBRANCH="${KBRANCH:-sheng-7.2.2}"
+          KCONF="${KCONF:-sm8550.config}"
+          sed -i "s|^KERNEL_REPO=.*|KERNEL_REPO=${KREPO}|" kernel-sheng/BUILD.env
+          sed -i "s|^KERNEL_BRANCH=.*|KERNEL_BRANCH=${KBRANCH}|" kernel-sheng/BUILD.env
+          sed -i "s|^KERNEL_CONFIG=.*|KERNEL_CONFIG=${KCONF}|" kernel-sheng/BUILD.env
+          cat kernel-sheng/BUILD.env
 
       - name: Build kernel
         run: |

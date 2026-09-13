@@ -77,6 +77,11 @@ jobs:
             git add -A || true
             git -c core.editor=true commit --no-edit -m "chore: sync with upstream armada-os (CONFLICTS — resolve manually)" || true
           fi
+          # GITHUB_TOKEN can never push workflow files (missing `workflows`
+          # scope), and sheng keeps its own workflow set anyway: keep the
+          # fork's .github/workflows/ and sync only code changes upstream.
+          git checkout origin/main -- .github/workflows/ 2>/dev/null || true
+          git commit -m "sync: keep fork workflows (upstream workflow files skipped)" --allow-empty 2>/dev/null || true
           git push origin upstream-sync --force-with-lease
 
       - name: Build PR body (diff report)
