@@ -15,9 +15,11 @@ case "$model" in
     "AYN Odin 2 Mini") profile=ayn-odin-2-mini ;;
     "AYN Odin 2 Portal") profile=ayn-odin-2-portal ;;
     "AYN Thor") profile=ayn-thor ;;
+    "AYN Thor Lite") profile=ayn-thor-lite ;;
     "AYANEO Pocket ACE") profile=ayaneo-pocket-ace ;;
     "AYANEO Pocket DMG") profile=ayaneo-pocket-dmg ;;
     "AYANEO Pocket DS") profile=ayaneo-pocket-ds ;;
+    "AYANEO Pocket S 1K") profile=ayaneo-pocket-s1k ;;
     "AYANEO Pocket S 2K") profile=ayaneo-pocket-s2k ;;
     "AYANEO Pocket S2") profile=ayaneo-pocket-s2 ;;
     "KONKR Pocket FIT") profile=konkr-pocket-fit ;;
@@ -25,7 +27,9 @@ case "$model" in
     "AYN Odin 3") profile=ayn-odin-3 ;;
     "Xiaomi Pad 6S Pro"*) profile=sm8550-xiaomi-sheng ;;
     "Retroid Pocket 5") profile=retroid-pocket-5 ;;
+    "Retroid Pocket 5 Visionox") profile=retroid-pocket-5 ;;
     "Retroid Pocket Flip2") profile=retroid-pocket-flip2 ;;
+    "Retroid Pocket Flip2 Visionox") profile=retroid-pocket-flip2 ;;
     "Retroid Pocket Mini") profile=retroid-pocket-mini ;;
     "Retroid Pocket Mini V2") profile=retroid-pocket-mini-v2 ;;
     "Retroid Pocket 6") profile=retroid-pocket-6 ;;
@@ -117,9 +121,7 @@ vars=(
     ARMADA_PANEL_ORIENTATION
     ARMADA_HDR_NITS
     ARMADA_GAMEPAD_QUIRK
-    ARMADA_RGB_BACKEND
-    ARMADA_RGB_TARGETS
-    ARMADA_RGB_CORRECTION
+    ARMADA_IP_TARGETS
     ARMADA_LITTLE_CORES
     ARMADA_BIG_CORES
     ARMADA_PRIME_CORES
