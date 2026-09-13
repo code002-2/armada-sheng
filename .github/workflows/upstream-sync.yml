@@ -39,6 +39,11 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          # GITHUB_TOKEN can never push workflow files (no `workflows`
+          # scope); a classic PAT with repo+workflow scopes can. Falls back
+          # to GITHUB_TOKEN when SYNC_TOKEN is unset (code-only syncs still
+          # work; workflow-file pushes would be rejected).
+          token: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Fetch upstream
         run: |
@@ -77,11 +82,6 @@ jobs:
             git add -A || true
             git -c core.editor=true commit --no-edit -m "chore: sync with upstream armada-os (CONFLICTS — resolve manually)" || true
           fi
-          # GITHUB_TOKEN can never push workflow files (missing `workflows`
-          # scope), and sheng keeps its own workflow set anyway: keep the
-          # fork's .github/workflows/ and sync only code changes upstream.
-          git checkout origin/main -- .github/workflows/ 2>/dev/null || true
-          git commit -m "sync: keep fork workflows (upstream workflow files skipped)" --allow-empty 2>/dev/null || true
           git push origin upstream-sync --force-with-lease
 
       - name: Build PR body (diff report)
@@ -130,7 +130,7 @@ jobs:
       - name: Create or update PR
         if: ${{ steps.compare.outputs.behind > 0 && (github.event_name == 'schedule' || inputs.open_pr) }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           set -euxo pipefail
           BODY="$(cat "$GITHUB_WORKSPACE/pr-body.md")"
@@ -152,7 +152,7 @@ jobs:
       - name: Close stale PR if up to date
         if: ${{ steps.compare.outputs.behind == 0 }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           set -euxo pipefail
           EXISTING=$(gh pr list --repo "${GITHUB_REPOSITORY}" --head upstream-sync \
