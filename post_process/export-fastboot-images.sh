@@ -1,10 +1,10 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Export fastboot-flashable images for an Armada device that boots from the
 # Android internal-storage partitions via the vendor ABL (no UEFI/ESP, no
-# ROCKNIX /KERNEL) 鈥?currently the Xiaomi Pad 6S Pro (sheng).
+# ROCKNIX /KERNEL) -currently the Xiaomi Pad 6S Pro (sheng).
 #
 # SINGLE-PARTITION LAYOUT: the BIB raw image (ESP + /boot + root) is merged
-# into one rootfs 鈥?the /boot payload (ostree deployments, vmlinuz,
+# into one rootfs -the /boot payload (ostree deployments, vmlinuz,
 # initramfs, DTBs, BLS entries) moves into <root>/boot, matching bootc's
 # "Allow /boot to be missing in target" (aboot/automotive) support. There is
 # NO separate linux_boot partition anymore.
@@ -116,7 +116,7 @@ sudo blkid "${LOOP}p3" | grep -qE 'TYPE="(ext4|btrfs)"' || { echo "ERROR: p3 is 
 
 # ---------------------------------------------------------------------------
 # 2. Merge the /boot payload into the root filesystem (single-partition
-#    layout 鈥?no separate linux_boot needed: bootc supports /boot as a plain
+#    layout -no separate linux_boot needed: bootc supports /boot as a plain
 #    directory inside the root, see bootc "install-to-filesystem: Allow /boot
 #    to be missing in target"). The flatten vmlinuz/initramfs/dtbs + BLS +
 #    ostree deployments all move to <root>/boot, and the boot.img is baked
@@ -192,25 +192,60 @@ sudo python3 "${MKBOOTIMG}" \
     -o "${WORK}/boot_b.img"
 
 # ---------------------------------------------------------------------------
-# 4. Re-bake the root fstab (single-partition: /boot lives inside the root,
-#    no /boot entry, no /boot/efi). Bind by filesystem UUID: the flattened
-#    image keeps its UUID, so mounting works regardless of user partition
-#    naming. x-systemd.growfs resolves the device from the UUID.
+# 4. Re-bake /etc/fstab for the single-partition layout.
+#
+# The stale /boot entry must be removed from the LIVE fstab, and on an ostree
+# system that is NOT the physical root's /etc. bootc writes the entry into the
+# deployment's own etc/fstab (bootc install.rs opens deployment_dirpath and
+# writes "etc/fstab" there), and with sysroot.readonly=true the running /etc
+# is a bind mount of the stateroot's etc. Rewriting only <root>/etc/fstab
+# therefore leaves the /boot entry in place: systemd then waits for a
+# filesystem UUID that was never flashed (the /boot partition is merged into
+# the root by this script), and the boot dies at the splash -- the classic
+# "Preparing Armada" hang.
+#
+# So rewrite every fstab a deployment can resolve: the stateroot etc plus each
+# deployment's etc. The /boot line goes away, and the root line gains
+# x-systemd.growfs so the flashed image expands to fill the partition.
 # ---------------------------------------------------------------------------
 ROOT_UUID=$(sudo blkid -s UUID -o value "${LOOP}p3")
 [ -n "${ROOT_UUID}" ] || { echo "ERROR: could not read rootfs UUID" >&2; exit 1; }
 
+ROOT_FSTAB_LINE="UUID=${ROOT_UUID} / ext4 defaults,x-systemd.growfs 0 1"
+
+FSTAB_DONE=0
+for etcdir in "${WORK}/rootfs"/ostree/deploy/*/etc \
+               "${WORK}/rootfs"/ostree/deploy/*/deploy/*/etc; do
+    [ -d "${etcdir}" ] || continue
+    # Drop every /boot mount (and /boot/efi): the payload now lives in the
+    # root's own /boot directory, so nothing has to be mounted there.
+    if [ -f "${etcdir}/fstab" ]; then
+        sudo sed -i -E '/[[:space:]]\/boot(\/efi)?([[:space:]]|$)/d' "${etcdir}/fstab"
+    fi
+    # Exactly one root line, carrying growfs.
+    if ! sudo grep -qE "^UUID=${ROOT_UUID}[[:space:]]+/[[:space:]]" "${etcdir}/fstab" 2>/dev/null; then
+        printf '%s\n' "${ROOT_FSTAB_LINE}" | sudo tee -a "${etcdir}/fstab" >/dev/null
+    fi
+    echo "==> fstab ${etcdir#"${WORK}/rootfs"}: $(sudo tr '\n' ';' <"${etcdir}/fstab")"
+    FSTAB_DONE=$((FSTAB_DONE + 1))
+done
+if [ "${FSTAB_DONE}" -eq 0 ]; then
+    echo "ERROR: no ostree etc directory under ${WORK}/rootfs/ostree/deploy" >&2
+    sudo find "${WORK}/rootfs/ostree" -maxdepth 4 -type d -name etc >&2 || true
+    exit 1
+fi
+
+# The physical root's /etc is not the live /etc on ostree, but keep it
+# consistent for anything that inspects the raw image.
 sudo mkdir -p "${WORK}/rootfs/etc"
-sudo tee "${WORK}/rootfs/etc/fstab" <<EOF >/dev/null
-UUID=${ROOT_UUID} / ext4 defaults,x-systemd.growfs 0 1
-EOF
-echo "==> fstab baked (root UUID=${ROOT_UUID}; ext4, growfs; no /boot entry 鈥?merged into root)"
+printf '%s\n' "${ROOT_FSTAB_LINE}" | sudo tee "${WORK}/rootfs/etc/fstab" >/dev/null
+echo "==> fstab baked (root UUID=${ROOT_UUID}; ext4, growfs; no /boot entry -merged into root)"
 sudo sync
 
 # ---------------------------------------------------------------------------
 # 5. Export the root filesystem (whole-partition dd, no conv=sparse: fastboot
 #    misdetects holes as Android sparse images and the device then rejects
-#    them). Single output 鈥?/boot is inside this image now.
+#    them). Single output -/boot is inside this image now.
 # ---------------------------------------------------------------------------
 echo "==> Exporting ${OUT}/linux.img (${P3_SIZE} sectors)"
 sudo dd if="${RAW}" of="${OUT}/linux.img" bs=512 skip="${P3_START}" count="${P3_SIZE}" \
@@ -240,7 +275,7 @@ sudo blkid "${OUT}/linux.img" | grep -qE 'TYPE="(ext4|btrfs)"' || { echo "ERROR:
     cd "${OUT}"
     sha256sum boot_b.img linux.img > SHA256SUMS
     {
-        echo "Armada flashable images (${DEVICE}) 鈥?built $(date -u '+%Y-%m-%d %H:%M:%SZ')"
+        echo "Armada flashable images (${DEVICE}) -built $(date -u '+%Y-%m-%d %H:%M:%SZ')"
         echo "root partition: PARTLABEL=${PARTLABEL_ROOT} (single partition; /boot merged into root)"
         echo "boot_b.img     $(stat -c %s boot_b.img) bytes"
         echo "linux.img      $(stat -c %s linux.img) bytes"
@@ -252,7 +287,7 @@ sudo blkid "${OUT}/linux.img" | grep -qE 'TYPE="(ext4|btrfs)"' || { echo "ERROR:
 cat > "${OUT}/flash.sh" <<SH
 #!/bin/bash
 # Flash Armada (Xiaomi Pad 6S Pro / sheng) to internal storage.
-# Single-partition layout: NO separate /boot partition 鈥?the ostree
+# Single-partition layout: NO separate /boot partition -the ostree
 # deployments and boot files live inside the rootfs (/boot directory).
 # Prereqs: unlocked bootloader + TWRP installed, tablet in fastboot mode,
 # and the target partition exists (see docs/flashing-xiaomi-sheng.md).
@@ -268,12 +303,12 @@ sha256sum -c SHA256SUMS
 
 # Sanity: the exported images are sector-aligned (multiple of 512, and of 4096
 # in practice). A size that is not 4096-aligned means the file was truncated or
-# rewritten by a downloader/tool 鈥?fastboot then refuses it with
+# rewritten by a downloader/tool -fastboot then refuses it with
 # 'write_sparse_skip_chunk ... not a multiple of the block size'.
 for img in boot_b.img linux.img; do
     sz=\$(stat -c %s "\${img}" 2>/dev/null || stat -f %z "\${img}")
     if [ \$((sz % 4096)) -ne 0 ]; then
-        echo "ERROR: \${img} is not 4096-byte aligned (\${sz} bytes) 鈥?the file was" >&2
+        echo "ERROR: \${img} is not 4096-byte aligned (\${sz} bytes) -the file was" >&2
         echo "damaged/rewritten. Re-flatten it:  dd if=\${img} of=\${img}.flat bs=4096 conv=sync" >&2
         echo "then flash the .flat file." >&2
         exit 1
@@ -283,7 +318,7 @@ done
 # The GPT partition name is the only thing flash.sh relies on. Users create
 # their partition however they like (usually a 'linux' partition at the last
 # free slot = sda30); probe for it so a slightly different name (Linux,
-# armada, ...) still works. Only the *flash* step cares about the name 鈥?# booting afterwards is bound by filesystem UUID.
+# armada, ...) still works. Only the *flash* step cares about the name -# booting afterwards is bound by filesystem UUID.
 detect_partition() {
     local cand
     for cand in ${PARTLABEL_ROOT} Linux linux armada sheng userdata; do
