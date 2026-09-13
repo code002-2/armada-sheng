@@ -234,6 +234,17 @@ jobs:
           EOF
           cat system_files/usr/lib/bootc/install/00-armada.toml
 
+          # ...and the same applies to the rootflags karg. 10-armada.toml asks
+          # for "rootflags=noatime,compress=zstd:1", which is right for the
+          # handhelds (btrfs) and fatal here: ext4 rejects unknown mount options
+          # outright, so the kernel fails to mount root inside the initramfs,
+          # well before systemd or any of our services run. Keep noatime, drop
+          # the btrfs-only part. Every other karg in that file is
+          # filesystem-agnostic.
+          sed -i 's|"rootflags=noatime,compress=zstd:1"|"rootflags=noatime"|' \
+              system_files/usr/lib/bootc/kargs.d/10-armada.toml
+          grep -n rootflags system_files/usr/lib/bootc/kargs.d/10-armada.toml
+
       - name: Configure bootc install for the vendor-ABL boot chain
         run: |
           set -euxo pipefail
