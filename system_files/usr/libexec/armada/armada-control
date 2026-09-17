@@ -42,6 +42,7 @@ GAME_MODE_SERVICE = "gamescope-session-plus@steam.service"
 BOTTOM_SCREEN_BRIGHTNESS_PATH = Path("/etc/armada/bottom-screen-brightness")
 BOTTOM_SCREEN_BRIGHTNESS_RESTORE_INTERVAL = 2
 BACKLIGHT_ROOT = Path("/sys/class/backlight")
+DRM_ROOT = Path("/sys/class/drm")
 DEVICE_ENV = os.environ.get("ARMADA_DEVICE_ENV", "/usr/libexec/armada/device-env")
 CONFIG_PATHS = {
     "power": Path("/etc/armada/power-profiles.conf"),
@@ -266,6 +267,19 @@ def bottom_screen_brightness():
     return read_backlight_brightness(secondary_backlight())
 
 
+def bottom_screen_active():
+    connector = device_env().get("ARMADA_SECONDARY_CONNECTOR", "")
+    if not connector or any(char in connector for char in "/.*?[]"):
+        return False
+    for path in DRM_ROOT.glob(f"card[0-9]*-{connector}"):
+        try:
+            if (path / "enabled").read_text().strip() == "enabled":
+                return True
+        except OSError:
+            pass
+    return False
+
+
 def saved_bottom_screen_brightness():
     try:
         brightness = int(BOTTOM_SCREEN_BRIGHTNESS_PATH.read_text().strip())
@@ -419,7 +433,8 @@ def action_get_bottom_screen_enabled(request):
 
 def action_get_bottom_screen_brightness(request):
     brightness = bottom_screen_brightness()
-    return {"supported": brightness is not None, "brightness": brightness or 0}
+    return {"supported": brightness is not None, "brightness": brightness or 0,
+            "active": bottom_screen_active()}
 
 
 def action_set_bottom_screen_brightness(request):

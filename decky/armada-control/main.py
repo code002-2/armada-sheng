@@ -13,6 +13,7 @@ from armada_control.power import save_power_config
 from armada_control.rgb import get_rgb, set_rgb
 from armada_control.steam import compat_mapped_appids, installed_games
 from armada_control.system import (
+    bottom_screen_active,
     reapply_perf,
     restart_game_mode,
     set_abl_auto_enabled,
@@ -67,6 +68,9 @@ class Plugin:
 
     async def set_bottom_screen_brightness(self, brightness):
         return await asyncio.to_thread(set_bottom_screen_brightness, brightness)
+
+    async def get_bottom_screen_active(self):
+        return await asyncio.to_thread(bottom_screen_active)
 
     async def set_desktop_mode(self, value):
         return await asyncio.to_thread(set_desktop_mode, value)

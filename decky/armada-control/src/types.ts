@@ -107,6 +107,7 @@ export interface Config {
   bottomScreenSupported: boolean;
   bottomScreenEnabled: boolean;
   bottomScreenBrightnessSupported: boolean;
+  bottomScreenActive: boolean;
   bottomScreenBrightness: number;
   sshEnabled: boolean;
   mtpEnabled: boolean;
