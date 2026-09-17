@@ -132,6 +132,13 @@ def bottom_screen_brightness():
     return None
 
 
+def bottom_screen_active():
+    try:
+        return bool(call("get_bottom_screen_brightness").get("active"))
+    except Exception:
+        return False
+
+
 def set_bottom_screen_brightness(brightness):
     return int(call("set_bottom_screen_brightness", brightness=brightness).get("brightness", 0))
 

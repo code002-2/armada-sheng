@@ -3,6 +3,7 @@ import { ButtonItem, Field, PanelSection } from "@decky/ui";
 import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import {
+  getBottomScreenActive,
   setAblAutoEnabled as applyAblAutoEnabled,
   setBottomScreenBrightness as applyBottomScreenBrightness,
   setBottomScreenEnabled as applyBottomScreenEnabled,
@@ -30,6 +31,29 @@ export function Settings({ config, setConfig }: {
     window.clearTimeout(bottomScreenBrightnessTimer.current);
     bottomScreenBrightnessRequest.current += 1;
   }, []);
+
+  useEffect(() => {
+    if (!config.bottomScreenBrightnessSupported) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const active = await getBottomScreenActive();
+        if (!cancelled) {
+          setConfig((current) => current && current.bottomScreenActive !== active
+            ? { ...current, bottomScreenActive: active } : current);
+        }
+      } catch (error) {
+        if (!cancelled) setConfig((current) => current && current.bottomScreenActive
+          ? { ...current, bottomScreenActive: false } : current);
+      }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [config.bottomScreenBrightnessSupported, setConfig]);
 
   const setSshEnabled = async (enabled: boolean) => {
     if (enabled === !!config.sshEnabled) {
@@ -163,7 +187,7 @@ export function Settings({ config, setConfig }: {
               value={!!config.bottomScreenEnabled}
               onChange={setBottomScreenEnabled}
             />
-            {config.bottomScreenBrightnessSupported && (
+            {config.bottomScreenBrightnessSupported && config.bottomScreenActive && (
               <SliderEdit
                 label="Bottom Screen Brightness"
                 value={config.bottomScreenBrightness}
