@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { getCompatMappedAppids, reapplyPerf, restartGameMode, saveCompatApplied, saveTweaks } from "../backend";
 import { SelectEdit, SliderEdit } from "../components/widgets";
+import { t, translateLabel } from "../i18n";
 import { getGlobalResolution, setGlobalResolution } from "../lib/steamSettings";
 import { clone } from "../lib/util";
 import { availableGames, editTargetOptions } from "../lib/games";
@@ -52,17 +53,17 @@ function cpulistError(text: string, cpuCount: number): string {
     const item = part.trim();
     if (!item) continue;
     const match = /^(\d+)(?:-(\d+))?$/.exec(item);
-    if (!match) return `Invalid entry: ${item}`;
+    if (!match) return t("compatibility.invalidCoreEntry", { value: item });
     const low = Number(match[1]);
     const high = match[2] !== undefined ? Number(match[2]) : low;
-    if (high < low) return `Invalid range: ${item}`;
+    if (high < low) return t("compatibility.invalidCoreRange", { value: item });
     for (let cpu = low; cpu <= high; cpu++) {
-      if (cpu >= cpuCount) return `No such CPU: ${cpu}`;
-      if (seen.has(cpu)) return `Duplicate CPU: ${cpu}`;
+      if (cpu >= cpuCount) return t("compatibility.cpuNotFound", { value: cpu });
+      if (seen.has(cpu)) return t("compatibility.duplicateCpu", { value: cpu });
       seen.add(cpu);
     }
   }
-  return seen.size ? "" : "Enter cores, e.g. 7,3-6";
+  return seen.size ? "" : t("compatibility.enterCores");
 }
 
 const resolutionOptions = [
@@ -95,11 +96,11 @@ function ConfirmResetAllModal({ closeModal, onConfirm }: { closeModal?: () => vo
   return (
     <ModalRoot onCancel={closeModal}>
       <DialogBody>
-        Restores Armada defaults for launch options, resolution, and compatibility across all games.
+        {t("compatibility.resetAllDescription")}
       </DialogBody>
       <DialogFooter>
-        <DialogButton onClick={confirm}>Reset All Games</DialogButton>
-        <DialogButton onClick={closeModal}>Cancel</DialogButton>
+        <DialogButton onClick={confirm}>{t("compatibility.resetAllGames")}</DialogButton>
+        <DialogButton onClick={closeModal}>{t("common.cancel")}</DialogButton>
       </DialogFooter>
     </ModalRoot>
   );
@@ -121,11 +122,11 @@ function ConfirmResetGameModal({
   return (
     <ModalRoot onCancel={closeModal}>
       <DialogBody>
-        Restores Armada defaults for {gameName}. Custom launch options and per-game settings will be removed.
+        {t("compatibility.resetGameDescription", { game: gameName })}
       </DialogBody>
       <DialogFooter>
-        <DialogButton onClick={confirm}>Reset Game</DialogButton>
-        <DialogButton onClick={closeModal}>Cancel</DialogButton>
+        <DialogButton onClick={confirm}>{t("compatibility.resetGame")}</DialogButton>
+        <DialogButton onClick={closeModal}>{t("common.cancel")}</DialogButton>
       </DialogFooter>
     </ModalRoot>
   );
@@ -145,11 +146,11 @@ function ConfirmGameModeRestartModal({
   return (
     <ModalRoot onCancel={closeModal}>
       <DialogBody>
-        Gamescope must restart before this change takes effect. This closes any running game and restarts Steam.
+        {t("compatibility.restartGameModeDescription")}
       </DialogBody>
       <DialogFooter>
-        <DialogButton onClick={restart}>Restart Game Mode</DialogButton>
-        <DialogButton onClick={closeModal}>Later</DialogButton>
+        <DialogButton onClick={restart}>{t("compatibility.restartGameMode")}</DialogButton>
+        <DialogButton onClick={closeModal}>{t("common.later")}</DialogButton>
       </DialogFooter>
     </ModalRoot>
   );
@@ -174,7 +175,7 @@ function EnvVarModal({
   const save = () => {
     const name = key.trim();
     if (!name || name.includes("=") || name.includes("\0")) {
-      setNameError("Invalid name: must be non-empty, no '='");
+      setNameError(t("compatibility.invalidVariableName"));
       return;
     }
     onSave(name, value);
@@ -183,13 +184,13 @@ function EnvVarModal({
   return (
     <ModalRoot onCancel={closeModal}>
       <DialogBody>
-        <TextField label="Name" value={key} onChange={(event) => setKey(event.target.value)} />
+        <TextField label={t("common.name")} value={key} onChange={(event) => setKey(event.target.value)} />
         {nameError ? <Field description={nameError} /> : null}
-        <TextField label="Value" value={value} onChange={(event) => setValue(event.target.value)} />
+        <TextField label={t("common.value")} value={value} onChange={(event) => setValue(event.target.value)} />
       </DialogBody>
       <DialogFooter>
         <Focusable style={{ display: "flex", flexDirection: "row", gap: "8px", width: "100%" }}>
-          <DialogButton onClick={save}>Save</DialogButton>
+          <DialogButton onClick={save}>{t("common.save")}</DialogButton>
           {onDelete ? (
             <DialogButton
               onClick={() => {
@@ -197,10 +198,10 @@ function EnvVarModal({
                 closeModal?.();
               }}
             >
-              Delete
+              {t("common.delete")}
             </DialogButton>
           ) : null}
-          <DialogButton onClick={closeModal}>Cancel</DialogButton>
+          <DialogButton onClick={closeModal}>{t("common.cancel")}</DialogButton>
         </Focusable>
       </DialogFooter>
     </ModalRoot>
@@ -270,7 +271,7 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
           setResolutionMessage("");
         }
       } catch (error) {
-        if (!cancelled) setResolutionMessage("Resolution override is unavailable");
+        if (!cancelled) setResolutionMessage(t("compatibility.resolutionUnavailable"));
       }
     }
     loadResolution();
@@ -405,7 +406,7 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
       await apps.SetAppResolutionOverride(Number(game.appid), value);
       setResolutionMessage("");
     } catch (error) {
-      setResolutionMessage("Failed to set resolution override");
+      setResolutionMessage(t("compatibility.setResolutionError"));
     }
   };
   const setSteamDefaultResolution = async (value: string) => {
@@ -415,7 +416,7 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
       setResolutionMessage("");
       setDefaultResolution(applied || "Default");
     } catch (error) {
-      setResolutionMessage("Failed to set default resolution");
+      setResolutionMessage(t("compatibility.setDefaultResolutionError"));
     }
   };
   const resetAllGames = async () => {
@@ -465,7 +466,7 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
     const appid = game.appid;
     showModal(
       <ConfirmResetGameModal
-        gameName={game.name || "this game"}
+        gameName={game.name || t("games.thisGame")}
         onConfirm={() => { void resetGame(appid); }}
       />,
     );
@@ -484,7 +485,7 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
   };
 
   const toolOptions = [
-    { data: FOLLOW_STEAM_COMPAT, label: "Follow Steam" },
+    { data: FOLLOW_STEAM_COMPAT, label: t("compatibility.followSteam") },
     ...compatTools.map((tool) => ({ data: tool.id, label: tool.label })),
   ];
   const onSelectGlobalDefault = async (choice: any) => {
@@ -514,8 +515,8 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
     selectableTools.set(currentTool, { id: currentTool, label: currentTool });
   }
   const perGameToolOptions = [
-    { data: USE_DEFAULT_COMPAT, label: "Use Default" },
-    { data: FOLLOW_STEAM_COMPAT, label: "Follow Steam" },
+    { data: USE_DEFAULT_COMPAT, label: t("common.useDefault") },
+    { data: FOLLOW_STEAM_COMPAT, label: t("compatibility.followSteam") },
     ...Array.from(selectableTools.values()).map((tool) => ({ data: tool.id, label: tool.label })),
   ];
   const onSelectPerGameTool = async (choice: any) => {
@@ -547,7 +548,7 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
   const isCustom = customSelected || (!hasPreset && !!storedConfig);
   const fexValue = isCustom ? "custom" : hasPreset ? storedProfile! : "default";
   const fexConfig: Record<string, string> = (isCustom ? storedConfig : presets[fexValue]?.config) || presets.default?.config || {};
-  const fexOptions = [...presetEntries.map(([id, profile]) => ({ data: id, label: profile.label })), { data: "custom", label: "Custom" }];
+  const fexOptions = [...presetEntries.map(([id, profile]) => ({ data: id, label: translateLabel(profile.label) })), { data: "custom", label: t("common.custom") }];
   const onSelectFex = (id: any) => {
     if (id === "custom") {
       setCustomSelected(true);
@@ -566,9 +567,9 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
   const perf = config.perf;
   const presetIds = ["all", ...(perf?.corePresets || []).map((option) => option.data)];
   const coreOptions = [
-    { data: "", label: "Default" },
-    ...(perf?.corePresets || [{ data: "all", label: "All Cores" }]),
-    { data: "custom", label: "Custom" },
+    { data: "", label: t("common.default") },
+    ...(perf?.corePresets || [{ data: "all", label: "All Cores" }]).map((option) => ({ ...option, label: translateLabel(option.label) })),
+    { data: "custom", label: t("common.custom") },
   ];
   const coresValue = String(values.cores ?? "");
   const coresIsCustom = customCores || (coresValue !== "" && !presetIds.includes(coresValue));
@@ -590,13 +591,13 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
     patchSettings({ cores: id || undefined });
   };
   const schedulerOptions = [
-    { data: "", label: "Default" },
+    { data: "", label: t("common.default") },
     ...(perf?.schedulers || ["eevdf"]).map((name) => ({ data: name, label: name.toUpperCase() })),
   ];
   const gamescopeCoreOptions = [
-    { data: "", label: "Default" },
-    ...(perf?.corePresets || [{ data: "all", label: "All Cores" }]),
-    { data: "custom", label: "Custom" },
+    { data: "", label: t("common.default") },
+    ...(perf?.corePresets || [{ data: "all", label: "All Cores" }]).map((option) => ({ ...option, label: translateLabel(option.label) })),
+    { data: "custom", label: t("common.custom") },
   ];
   const hasGamePerfOverrides = !editingDefault
     && PERF_KEYS.some((key) => Object.prototype.hasOwnProperty.call(gameSettings, key));
@@ -634,23 +635,23 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
   };
   const runningSelectedGame = !!game?.appid && game.appid === runtimeGame?.appid;
   const onReapply = async () => {
-    setReapplyStatus("Applying...");
+    setReapplyStatus(t("common.applying"));
     try {
       // flush the debounce: the daemon re-reads the on-disk tweaks
       await saveTweaks(config.tweaks);
       await reapplyPerf();
-      setReapplyStatus("Applied to running game");
+      setReapplyStatus(t("compatibility.appliedToRunningGame"));
     } catch (error) {
       setReapplyStatus(String(error));
     }
   };
   const restartWithTweaks = async () => {
-    setReapplyStatus("Restarting Game Mode...");
+    setReapplyStatus(t("compatibility.restartingGameMode"));
     try {
       await saveTweaks(tweaksRef.current);
       await restartGameMode();
     } catch (error) {
-      setReapplyStatus(`Restart failed: ${String(error)}`);
+      setReapplyStatus(t("compatibility.restartError", { error: String(error) }));
     }
   };
   const setGamescopeVulkanRealtime = (on: boolean) => {
@@ -668,12 +669,12 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
   };
   const perfControls = (
     <>
-      <div className="armada-subheader">Game</div>
-      <SelectEdit label="CPU Cores" value={coresIsCustom ? "custom" : coresValue} options={coreOptions} onChange={onSelectCores} />
+      <div className="armada-subheader">{t("compatibility.game")}</div>
+      <SelectEdit label={t("compatibility.cpuCores")} value={coresIsCustom ? "custom" : coresValue} options={coreOptions} onChange={onSelectCores} />
       {coresIsCustom ? (
         <PanelSectionRow>
           <TextField
-            label="Custom cores (ordered, e.g. 7,3-6)"
+            label={t("compatibility.customCoresDescription")}
             value={coresText}
             onChange={(event) => {
               // draft-local until valid: invalid text must never persist
@@ -687,15 +688,15 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
       {coresError && coresText ? <div className="armada-field-note">{coresError}</div> : null}
       {coresValue ? (
         <ToggleField
-          label="Wine CPU Topology"
+          label={t("compatibility.wineCpuTopology")}
           checked={values.wineTopology !== false}
           onChange={(on) => patchSettings({ wineTopology: on })}
         />
       ) : null}
-      <SliderEdit label="Nice" value={values.nice ?? 0} min={-20} max={19} step={1} onChange={(v) => patchSettings({ nice: v })} />
-      <div className="armada-subheader">Gamescope</div>
+      <SliderEdit label={t("compatibility.nice")} value={values.nice ?? 0} min={-20} max={19} step={1} onChange={(v) => patchSettings({ nice: v })} />
+      <div className="armada-subheader">{t("compatibility.gamescope")}</div>
       <SelectEdit
-        label="CPU Cores"
+        label={t("compatibility.cpuCores")}
         value={gsCoresIsCustom ? "custom" : gsCoresValue}
         options={gamescopeCoreOptions}
         onChange={(choice) => {
@@ -711,7 +712,7 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
       {gsCoresIsCustom ? (
         <PanelSectionRow>
           <TextField
-            label="Custom cores"
+            label={t("compatibility.customCores")}
             value={gsCoresText}
             onChange={(event) => {
               const text = event.target.value;
@@ -722,44 +723,44 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
         </PanelSectionRow>
       ) : null}
       {gsCoresError && gsCoresText ? <div className="armada-field-note">{gsCoresError}</div> : null}
-      <SliderEdit label="Nice" value={values.gamescopeNice ?? 0} min={-20} max={19} step={1} onChange={(v) => patchSettings({ gamescopeNice: v })} />
+      <SliderEdit label={t("compatibility.nice")} value={values.gamescopeNice ?? 0} min={-20} max={19} step={1} onChange={(v) => patchSettings({ gamescopeNice: v })} />
       <ToggleField
-        label="CPU Realtime Scheduling"
+        label={t("compatibility.cpuRealtimeScheduling")}
         checked={!!values.gamescopeRr}
         onChange={(on) => patchSettings({ gamescopeRr: on })}
       />
       {editingDefault ? (
         <ToggleField
-          label="Vulkan Realtime Queue"
+          label={t("compatibility.vulkanRealtimeQueue")}
           checked={!!tweaks.global.gamescopeVulkanRealtime}
           onChange={setGamescopeVulkanRealtime}
         />
       ) : null}
-      <div className="armada-subheader">System</div>
+      <div className="armada-subheader">{t("settings.system")}</div>
       <SelectEdit
-        label="CPU Scheduler"
+        label={t("compatibility.cpuScheduler")}
         value={String(values.scheduler ?? "")}
         options={schedulerOptions}
         onChange={(v) => patchSettings({ scheduler: String(v) || undefined })}
       />
       {hasGamePerfOverrides ? (
         <ButtonItem layout="below" onClick={resetGamePerformance}>
-          Reset Performance to Default
+          {t("compatibility.resetPerformance")}
         </ButtonItem>
       ) : null}
       {runningSelectedGame ? (
         <ButtonItem layout="below" onClick={() => { void onReapply(); }}>
-          Re-apply to Running Game
+          {t("compatibility.reapplyRunningGame")}
         </ButtonItem>
       ) : null}
-      {reapplyStatus ? <Field label="Status" description={reapplyStatus} /> : null}
+      {reapplyStatus ? <Field label={t("common.status")} description={reapplyStatus} /> : null}
     </>
   );
   const inheritedEnvEntries = Object.entries(globalEnv).filter(([key]) => typeof ownEnv[key] !== "string");
   const ownEnvEntries = Object.entries(ownEnv).filter(([, value]) => typeof value === "string") as [string, string][];
   const envControls = (
     <>
-      {inheritedEnvEntries.length ? <div className="armada-subheader">Default Variables</div> : null}
+      {inheritedEnvEntries.length ? <div className="armada-subheader">{t("compatibility.defaultVariables")}</div> : null}
       {inheritedEnvEntries.map(([key, value]) => (
         <ToggleField
           key={key}
@@ -771,7 +772,7 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
           })}
         />
       ))}
-      {inheritedEnvEntries.length ? <div className="armada-subheader">Per-Game Variables</div> : null}
+      {inheritedEnvEntries.length ? <div className="armada-subheader">{t("compatibility.perGameVariables")}</div> : null}
       {ownEnvEntries.map(([key, value]) => (
         <ButtonItem key={key} layout="below" onClick={() => openEnvVar(key)}>
           <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
@@ -780,39 +781,39 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
         </ButtonItem>
       ))}
       <ButtonItem layout="below" onClick={() => openEnvVar(null)}>
-        + Add Variable
+        {t("compatibility.addVariable")}
       </ButtonItem>
     </>
   );
 
   return (
     <>
-      <PanelSection title="EDIT GAME PROFILE">
+      <PanelSection title={t("compatibility.editGameProfile")}>
         <SelectEdit value={game?.appid || ""} options={gameOptions} onChange={setSelectedGame} />
-        <div className="armada-compat-note">Compatibility changes apply on next launch</div>
+        <div className="armada-compat-note">{t("compatibility.nextLaunchNotice")}</div>
       </PanelSection>
-      <PanelSection title="PROFILE SETTINGS">
+      <PanelSection title={t("compatibility.gameProfileSettings")}>
         {editingDefault ? (
           <>
             <SelectEdit
               labelBelow
-              label="Default Proton"
+              label={t("compatibility.defaultProton")}
               value={globalTool || activeGlobalTool}
               options={toolOptions}
               onChange={onSelectGlobalDefault}
               disabled={switchingDefault}
-              placeholder={globalToolMissing ? "Choose a Proton" : undefined}
+              placeholder={globalToolMissing ? t("compatibility.chooseProton") : undefined}
             />
             {globalToolMissing ? (
               <div className="armada-compat-note armada-note-error">
-                {globalTool} is no longer installed. Choose a new default for your games.
+                {t("compatibility.missingTool", { tool: globalTool })}
               </div>
             ) : null}
             {activeGlobalTool === FOLLOW_STEAM_COMPAT ? (
-              <div className="armada-compat-note">Steam chooses the compatibility tool for each game.</div>
+              <div className="armada-compat-note">{t("compatibility.followSteamDescription")}</div>
             ) : (
               <ToggleField
-                label="Apply to New Games"
+                label={t("compatibility.applyToNewGames")}
                 checked={tweaks.global.autoApplyCompat !== false}
                 onChange={(enabled) => {
                   setAutoApplyCompat(enabled);
@@ -820,52 +821,52 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
                 }}
               />
             )}
-            <SelectEdit label="Game Resolution" value={defaultResolution} options={resolutionOptions} onChange={setSteamDefaultResolution} />
+            <SelectEdit label={t("compatibility.gameResolution")} value={defaultResolution} options={resolutionOptions.map((option) => ({ ...option, label: translateLabel(option.label) }))} onChange={setSteamDefaultResolution} />
           </>
         ) : (
           <>
-            <SelectEdit labelBelow label="Compatibility Tool" value={currentTool} options={perGameToolOptions} onChange={onSelectPerGameTool} />
-            <SelectEdit label="Game Resolution" value={resolution} options={resolutionOptions} onChange={setSteamResolution} />
+            <SelectEdit labelBelow label={t("compatibility.tool")} value={currentTool} options={perGameToolOptions} onChange={onSelectPerGameTool} />
+            <SelectEdit label={t("compatibility.gameResolution")} value={resolution} options={resolutionOptions.map((option) => ({ ...option, label: translateLabel(option.label) }))} onChange={setSteamResolution} />
           </>
         )}
-        {resolutionMessage ? <Field label="Status" description={resolutionMessage} /> : null}
-        <SelectEdit label="FEX Preset" value={fexValue} options={fexOptions} onChange={onSelectFex} />
+        {resolutionMessage ? <Field label={t("common.status")} description={resolutionMessage} /> : null}
+        <SelectEdit label={t("compatibility.fexPreset")} value={fexValue} options={fexOptions} onChange={onSelectFex} />
         {isCustom
           ? fexKnobs.map((knob) => (
-              <ToggleField key={knob.key} label={knob.label} checked={fexConfig[knob.key] === "1"} onChange={(value) => setKnob(knob.key, value)} />
+              <ToggleField key={knob.key} label={translateLabel(knob.label)} checked={fexConfig[knob.key] === "1"} onChange={(value) => setKnob(knob.key, value)} />
             ))
           : null}
       </PanelSection>
-      <PanelSection title="ADVANCED">
+      <PanelSection title={t("common.advanced")}>
         <ButtonItem layout="below" onClick={() => setShowPerf((value) => !value)}>
-          {showPerf ? "Hide Performance" : "Performance"}
+          {showPerf ? t("compatibility.hidePerformance") : t("options.performance")}
         </ButtonItem>
         {showPerf ? <div className="armada-advanced-group">{perfControls}</div> : null}
         <ButtonItem layout="below" onClick={() => setShowThunks((value) => !value)}>
-          {showThunks ? "Hide Host Thunks" : "Host Thunks"}
+          {showThunks ? t("compatibility.hideHostThunks") : t("compatibility.hostThunks")}
         </ButtonItem>
         {showThunks ? (
           <div className="armada-advanced-group">
             {thunkModules.map((thunk) => (
-              <ToggleField key={thunk.module} label={thunk.label} checked={thunks[thunk.module] !== false} onChange={(value) => setThunk(thunk.module, value)} />
+              <ToggleField key={thunk.module} label={translateLabel(thunk.label)} checked={thunks[thunk.module] !== false} onChange={(value) => setThunk(thunk.module, value)} />
             ))}
           </div>
         ) : null}
         <ButtonItem layout="below" onClick={() => setShowEnv((value) => !value)}>
-          {showEnv ? "Hide Environment" : "Environment"}
+          {showEnv ? t("compatibility.hideEnvironment") : t("compatibility.environment")}
         </ButtonItem>
         {showEnv ? <div className="armada-advanced-group">{envControls}</div> : null}
       </PanelSection>
       {!editingDefault ? (
         <PanelSection>
           <ButtonItem layout="below" disabled={resettingGame || resettingAll} onClick={confirmResetGame}>
-            {resettingGame ? "Resetting..." : "Reset to Default"}
+            {resettingGame ? t("common.resetting") : t("common.resetToDefault")}
           </ButtonItem>
         </PanelSection>
       ) : (
         <PanelSection>
           <ButtonItem layout="below" disabled={resettingAll || resettingGame} onClick={confirmResetAllGames}>
-            {resettingAll ? "Resetting..." : "Reset All Games"}
+            {resettingAll ? t("common.resetting") : t("compatibility.resetAllGames")}
           </ButtonItem>
         </PanelSection>
       )}

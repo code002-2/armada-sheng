@@ -1,0 +1,38 @@
+From: Armada <noreply@armada.local>
+Subject: [PATCH] arm64: dts: qcom: qcs8550-ayn: enable SDHCI capabilities and rumble, fix PCIe WAKE# polarity
+
+--- a/arch/arm64/boot/dts/qcom/qcs8550-ayn-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/qcs8550-ayn-common.dtsi
+@@ -51,7 +51,6 @@
+ 			gpios = <&pm8550_gpios 6 GPIO_ACTIVE_LOW>;
+ 			linux,code = <KEY_VOLUMEUP>;
+ 			linux,can-disable;
+-			wakeup-source;
+ 		};
+ 	};
+ 
+@@ -1096,7 +1096,7 @@
+ };
+ 
+ &pcieport0 {
+-	wake-gpios = <&tlmm 96 GPIO_ACTIVE_HIGH>;
++	wake-gpios = <&tlmm 96 GPIO_ACTIVE_LOW>;
+ 	reset-gpios = <&tlmm 94 GPIO_ACTIVE_LOW>;
+ 
+ 	wifi@0 {
+@@ -1462,7 +1462,6 @@
+ 	no-mmc;
+ 
+ 	qcom,dll-config = <0x0007442c>;
+-	sdhci-caps-mask = <0x3 0x0>;
+ 
+ 	status = "okay";
+ };
+@@ -1700,6 +1699,7 @@
+ 
+ 	gamepad: gamepad {
+ 		compatible = "gamepad,rsinput";
++		rumble-haptics;
+ 
+ 		gamepad-name = "AYN Odin2 Gamepad";
+ 		gamepad-bus = <0x0003>;

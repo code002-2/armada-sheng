@@ -1,0 +1,21 @@
+From: Armada <noreply@armada.local>
+Subject: [PATCH] arm64: dts: qcom: qcs8550-ayaneo: drop the SDHCI capability mask
+
+--- a/arch/arm64/boot/dts/qcom/qcs8550-ayaneo-pocket-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/qcs8550-ayaneo-pocket-common.dtsi
+@@ -52,7 +52,6 @@
+ 			gpios = <&pm8550_gpios 6 GPIO_ACTIVE_LOW>;
+ 			linux,code = <KEY_VOLUMEUP>;
+ 			linux,can-disable;
+-			wakeup-source;
+ 		};
+ 	};
+ 
+@@ -962,7 +962,6 @@
+ 	no-mmc;
+ 
+ 	qcom,dll-config = <0x0007442c>;
+-	sdhci-caps-mask = <0x3 0x0>;
+ 
+ 	status = "okay";
+ };
