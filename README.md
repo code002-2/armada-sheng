@@ -53,6 +53,7 @@
 已知限制:Steam 客户端更新与游戏下载需要可用的代理/网络访问 Valve CDN
 (开发中使用的代理配置见 [故障排查](docs/flashing-xiaomi-sheng.md))。
 
+<<<<<<< HEAD
 ## 构建可刷镜像
 
 **先刷新基础镜像**(sheng 容器),再导出。两条流水线:
@@ -134,6 +135,28 @@ $ just build-sheng-image <kernel>   # 使用 sheng 内核构建 Armada 容器
 ```
 
 sheng 路径说明:
+=======
+This repository assembles the Armada bootc image and its flashable disk images,
+along with the upstream-derived packages it ships (see
+[`packages/`](packages/README.md)). The development recipes require
+[just](https://just.systems/) and [Podman](https://podman.io/):
+
+```console
+$ just check     # Run the test suite and check recipe formatting
+$ just packages  # Build the packages the image consumes (slow from cold)
+$ just build     # Build the local bootc container image
+$ just --list    # Show disk-image, VM, and other development recipes
+```
+
+Each package builds as a stage in `packages/Containerfile` and is published
+under a tag derived from its own sources, so an unchanged package is never
+rebuilt. `just build` uses a locally built package when you have one and the
+published image otherwise, so you only build what you are changing.
+
+Issues and pull requests are welcome. For installation or device support, check
+the [troubleshooting documentation](https://armadaos.dev/troubleshooting/frequently-asked-questions/)
+or ask in the [Armada Discord community](https://discord.gg/HdmdSxTD5S).
+>>>>>>> upstream/main
 
 - 内核镜像(`.github/workflows/build-sheng-disk.yml` 仍保留旧版 BIB 步骤;
   **当前有效**的可刷写路径是上面的容器导出流水线)。

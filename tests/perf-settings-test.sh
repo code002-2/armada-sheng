@@ -348,6 +348,12 @@ pocket5 = run_device_env("Retroid Pocket 5")
 check("device-env SM8250 Proton defaults",
       pocket5.get("ARMADA_PROTON_DEFAULTS") ==
       "proton-cachyos-11.0-arm64")
+mangmi = run_device_env("MANGMI Air Y Pro")
+check("device-env MANGMI profile",
+      mangmi.get("ARMADA_DEVICE_ID") == "mangmi-air-y-pro" and
+      mangmi.get("ARMADA_SOC_CLASS") == "SM8250" and
+      mangmi.get("ARMADA_GAMESCOPE_FAKE_OUTPUT_MM") == "120x90" and
+      mangmi.get("ARMADA_IP_TARGETS") == "ds5")
 
 # --- armada-powerd: config parsing ------------------------------------------
 powerd = load_script("armada-powerd")
