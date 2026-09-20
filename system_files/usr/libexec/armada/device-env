@@ -16,6 +16,7 @@ case "$model" in
     "AYN Odin 2 Portal") profile=ayn-odin-2-portal ;;
     "AYN Thor") profile=ayn-thor ;;
     "AYN Thor Lite") profile=ayn-thor-lite ;;
+    "MANGMI Air Y Pro") profile=mangmi-air-y-pro ;;
     "AYANEO Pocket ACE") profile=ayaneo-pocket-ace ;;
     "AYANEO Pocket DMG") profile=ayaneo-pocket-dmg ;;
     "AYANEO Pocket DS") profile=ayaneo-pocket-ds ;;
@@ -120,6 +121,7 @@ vars=(
     ARMADA_PANEL_TYPE
     ARMADA_PANEL_ORIENTATION
     ARMADA_GAMESCOPE_USE_ROTATION_SHADER
+    ARMADA_GAMESCOPE_FAKE_OUTPUT_MM
     ARMADA_HDR_NITS
     ARMADA_GAMEPAD_QUIRK
     ARMADA_IP_TARGETS

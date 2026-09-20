@@ -1,0 +1,15 @@
+From: Armada <noreply@armada.local>
+Subject: [PATCH] arm64: dts: qcom: odin3: enable DPU dithering
+
+--- a/arch/arm64/boot/dts/qcom/cq8725s-ayn-odin3.dts
++++ b/arch/arm64/boot/dts/qcom/cq8725s-ayn-odin3.dts
+@@ -217,6 +217,9 @@
+ &display_panel {
+ 	compatible = "chipone,icna3520";
+ 
++	/* 8bpc DSI link; dither the DPU 10-bit downconvert to hide banding */
++	armada,dpu-8bpc-dither;
++
+ 	reset-gpios = <&tlmm 98 GPIO_ACTIVE_LOW>;
+ 
+ 	vddio-supply = <&vreg_l12b_1p8>;
