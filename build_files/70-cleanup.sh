@@ -26,7 +26,18 @@ dnf5 -y remove --no-autoremove \
 
 dnf5 -y remove --no-autoremove binutils
 
-for required in qcom-firmware atheros-firmware bootc podman skopeo gamescope-session; do
+for required in \
+    qcom-firmware \
+    atheros-firmware \
+    bootc \
+    podman \
+    skopeo \
+    gamescope-session \
+    newt \
+    python-unversioned-command \
+    lsb_release \
+    fuse-libs \
+    sdl2-compat; do
     rpm -q "$required" >/dev/null || { echo "ERROR: $required got removed"; exit 1; }
 done
 

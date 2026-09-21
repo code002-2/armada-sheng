@@ -59,11 +59,13 @@ mapfile -d '' -t actual <"$args_file"
 expected=(
     --backend drm
     --drm-lease-client "$lease_socket"
+    --drm-lease-yield
     --expose-wayland
     --force-windows-fullscreen
     --xwayland-count 1
     --default-touch-mode 4
     --force-orientation right
+    --force-composition-rotation
     -- "$BOTTOM_SESSION"
 )
 [[ "${#actual[@]}" == "${#expected[@]}" ]]
