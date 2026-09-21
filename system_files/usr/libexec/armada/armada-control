@@ -590,7 +590,7 @@ class PerfManager:
     def gamescope_layer(self, settings):
         clean = armada_perf.sanitize_perf(settings, self.env)
         layer = {}
-        for key in ("gamescopeNice", "gamescopeRr", "gamescopeCores", "scheduler"):
+        for key in ("gamescopeNice", "gamescopeCores", "scheduler"):
             if key in clean:
                 layer[key] = clean[key]
         if clean.get("scheduler") == "cosmos":

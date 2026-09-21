@@ -121,7 +121,6 @@ export const en = {
   "compatibility.nice": "Nice",
   "compatibility.gamescope": "Gamescope",
   "compatibility.customCores": "Custom cores",
-  "compatibility.cpuRealtimeScheduling": "CPU Realtime Scheduling",
   "compatibility.vulkanRealtimeQueue": "Vulkan Realtime Queue",
   "compatibility.cpuScheduler": "CPU Scheduler",
   "compatibility.reapplyRunningGame": "Re-apply to Running Game",

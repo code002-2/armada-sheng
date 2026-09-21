@@ -44,7 +44,7 @@ import type { Config } from "../types";
 
 const PERF_KEYS = [
   "cores", "wineTopology", "nice", "gamescopeCores",
-  "gamescopeNice", "gamescopeRr", "scheduler",
+  "gamescopeNice", "scheduler",
 ];
 
 function cpulistError(text: string, cpuCount: number): string {
@@ -724,11 +724,6 @@ export function Compatibility({ config, setConfig }: { config: Config; setConfig
       ) : null}
       {gsCoresError && gsCoresText ? <div className="armada-field-note">{gsCoresError}</div> : null}
       <SliderEdit label={t("compatibility.nice")} value={values.gamescopeNice ?? 0} min={-20} max={19} step={1} onChange={(v) => patchSettings({ gamescopeNice: v })} />
-      <ToggleField
-        label={t("compatibility.cpuRealtimeScheduling")}
-        checked={!!values.gamescopeRr}
-        onChange={(on) => patchSettings({ gamescopeRr: on })}
-      />
       {editingDefault ? (
         <ToggleField
           label={t("compatibility.vulkanRealtimeQueue")}

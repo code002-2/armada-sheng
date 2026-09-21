@@ -32,11 +32,16 @@ dnf5 -y install --setopt=install_weak_deps=False \
     curl \
     git \
     jq \
+    newt \
+    python-unversioned-command \
+    lsb_release \
     htop \
     lsof \
     scx-scheds \
     unzip \
     fuse \
+    fuse-libs \
+    sdl2-compat \
     evtest \
     dbus-x11 \
     xdg-user-dirs \

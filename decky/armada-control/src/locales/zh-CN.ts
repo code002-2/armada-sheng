@@ -123,7 +123,6 @@ export const zhCN = {
   "compatibility.nice": "Nice 优先级",
   "compatibility.gamescope": "Gamescope",
   "compatibility.customCores": "自定义核心",
-  "compatibility.cpuRealtimeScheduling": "CPU 实时调度",
   "compatibility.vulkanRealtimeQueue": "Vulkan 实时队列",
   "compatibility.cpuScheduler": "CPU 调度器",
   "compatibility.reapplyRunningGame": "重新应用到正在运行的游戏",

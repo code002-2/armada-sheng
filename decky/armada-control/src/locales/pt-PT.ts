@@ -123,7 +123,6 @@ export const ptPT = {
   "compatibility.nice": "Prioridade de agendamento",
   "compatibility.gamescope": "Gamescope",
   "compatibility.customCores": "Núcleos personalizados",
-  "compatibility.cpuRealtimeScheduling": "Agendamento de CPU em tempo real",
   "compatibility.vulkanRealtimeQueue": "Fila em tempo real do Vulkan",
   "compatibility.cpuScheduler": "Escalonador de CPU",
   "compatibility.reapplyRunningGame": "Reaplicar ao jogo em execução",
