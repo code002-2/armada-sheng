@@ -529,6 +529,10 @@ no equivalent submission was found, or a permanent URL to the upstream submissio
 - `patches/0074-soundwire-qcom-PCM-data-port-format-enable.patch`
   source: https://github.com/ROCKNIX/distribution/blob/bcf3b5bc574990b96543484575b06f912153a715/projects/ROCKNIX/devices/SM8750/patches/linux/0074-soundwire-qcom-PCM-data-port-format-enable.patch
   upstream: unknown
+- `patches/0075-ASoC-wsa884x-preserve-Pocket-S2-compander-gain.patch`
+  source: armada
+  upstream: local
+  notes: AYANEO Pocket S2-only fix. The WSA884x amplifier's POST_PMU sequence selects the SoundWire compander, but the unmute path immediately overrode it with the fixed CSR gain, discarding the board's matched compander plus digital-volume configuration. The driver now keeps the compander selection when its port is enabled, gated on the `ayaneo,pocket-s2` machine compatible so every other WSA884x machine keeps the original fixed-gain behavior. Scoped to the Armada distribution; not a Linux upstream submission.
 - `patches/0612-ROCKNIX-odin3-q6apm-start-mi2s-port-at-prepare.patch`
   source: https://github.com/ROCKNIX/distribution/blob/bcf3b5bc574990b96543484575b06f912153a715/projects/ROCKNIX/devices/SM8550/patches/linux/0612-ROCKNIX-odin3-q6apm-start-mi2s-port-at-prepare.patch
   upstream: unknown

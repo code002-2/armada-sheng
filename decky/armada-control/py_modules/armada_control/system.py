@@ -10,6 +10,7 @@ from .proc import clean_env
 OS_VERSION_PATH = Path("/usr/lib/armada/version")
 MEM_SLEEP_PATH = Path("/sys/power/mem_sleep")
 SLEEP_DEBUG_COMMAND = Path("/usr/bin/armada-sleep-debug")
+SLEEP_DEBUG_MODULE = Path("/usr/lib/armada/armada_sleep_debug.py")
 SLEEP_LOG_HOOK_SOURCE = Path(__file__).with_name("sleep_debug_hook.sh")
 SLEEP_LOG_HOOK = Path("/etc/armada/sleep-debug-hook")
 SLEEP_LOG_DROPIN = Path("/etc/systemd/system/systemd-suspend.service.d/90-armada-sleep-debug.conf")
@@ -177,26 +178,42 @@ def set_sleep_mode(value):
     return str(call("set_sleep_mode", value=str(value)).get("value"))
 
 
+def sleep_log_dropin():
+    return (
+        "[Service]\n"
+        "ExecStartPre=-/etc/armada/sleep-debug-hook prepare\n"
+        "ExecStopPost=-/etc/armada/sleep-debug-hook collect\n"
+    )
+
+
 def get_sleep_logs_enabled():
-    return SLEEP_LOG_DROPIN.is_file()
+    enabled = SLEEP_LOG_DROPIN.is_file()
+    if enabled and SLEEP_DEBUG_MODULE.is_file() and (
+        read_text(SLEEP_LOG_DROPIN) != sleep_log_dropin().strip()
+        or read_text(SLEEP_LOG_HOOK) != read_text(SLEEP_LOG_HOOK_SOURCE)
+    ):
+        try:
+            set_sleep_logs_enabled(True)
+        except (RuntimeError, OSError):
+            pass
+    return enabled
 
 
 def set_sleep_logs_enabled(enabled):
     if enabled:
-        if not SLEEP_DEBUG_COMMAND.is_file() or not SLEEP_LOG_HOOK_SOURCE.is_file():
+        if not all(p.is_file() for p in (SLEEP_DEBUG_COMMAND, SLEEP_DEBUG_MODULE, SLEEP_LOG_HOOK_SOURCE)):
             raise RuntimeError("Native sleep logging is unavailable.")
         SLEEP_LOG_HOOK.parent.mkdir(parents=True, exist_ok=True)
         SLEEP_LOG_HOOK.write_bytes(SLEEP_LOG_HOOK_SOURCE.read_bytes())
         os.chmod(SLEEP_LOG_HOOK, 0o755)
         SLEEP_LOG_DROPIN.parent.mkdir(parents=True, exist_ok=True)
         SLEEP_LOG_DROPIN.write_text(
-            "[Service]\n"
-            "ExecStartPre=-/etc/armada/sleep-debug-hook prepare\n"
-            "ExecStartPost=-/etc/armada/sleep-debug-hook collect\n",
+            sleep_log_dropin(),
             encoding="utf-8",
         )
     else:
         SLEEP_LOG_DROPIN.unlink(missing_ok=True)
+        run_cmd([str(SLEEP_DEBUG_COMMAND), "restore"])
 
     try:
         subprocess.run(

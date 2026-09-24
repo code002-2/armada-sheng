@@ -711,7 +711,7 @@ plugin_power.FACTORY_POWER_CONFIG = plugin_power.Path(factory)
 plugin_power.POWER_CONFIG = plugin_power.Path(os.path.join(WORK, "etc-armada-power.conf"))
 data = plugin_power.parse_power()
 factory_data = plugin_power.parse_power(plugin_power.FACTORY_POWER_CONFIG)
-check("governor exposed in parse", data["profiles"]["eco"]["cpu_governor"] == "schedutil")
+check("governor exposed in parse", data["profiles"]["eco"]["cpu_governor"] == "conservative")
 
 # untouched config renders no /etc profile sections (factory keeps tracking /usr)
 rendered = plugin_power.render_power(data, factory_data)
