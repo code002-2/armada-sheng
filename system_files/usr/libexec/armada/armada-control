@@ -85,6 +85,7 @@ CALIBRATION_PARAMS = (
     "trigger_right_antideadzone",
 )
 CALIBRATION_BACKENDS = {
+    "mangmi": Path("/sys/module/mangmi_pocket_max/parameters"),
     "rsinput": Path("/sys/module/rsinput/parameters"),
     "retroid": Path("/sys/module/retroid/parameters"),
 }
@@ -539,6 +540,7 @@ def action_set_rgb(request):
         return run_rgb(["off"])
 
     color = request.get("color")
+    saturation = request.get("saturation")
     brightness = request.get("brightness")
     valid_color = (
         isinstance(color, str)
@@ -547,6 +549,14 @@ def action_set_rgb(request):
     )
     if not valid_color:
         raise ValueError("invalid RGB color")
+    if saturation is not None:
+        valid_saturation = (
+            isinstance(saturation, int)
+            and not isinstance(saturation, bool)
+            and 0 <= saturation <= 100
+        )
+        if not valid_saturation:
+            raise ValueError("invalid RGB saturation")
     valid_brightness = (
         isinstance(brightness, int)
         and not isinstance(brightness, bool)
@@ -555,7 +565,10 @@ def action_set_rgb(request):
     if not valid_brightness:
         raise ValueError("invalid RGB brightness")
 
-    command = ["set", "--color", color, "--brightness", str(brightness)]
+    command = ["set", "--color", color]
+    if saturation is not None:
+        command.extend(["--saturation", str(saturation)])
+    command.extend(["--brightness", str(brightness)])
     return run_rgb(command)
 
 

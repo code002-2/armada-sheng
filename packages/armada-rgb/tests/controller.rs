@@ -111,6 +111,7 @@ fn enabled(color: &str, brightness: u8) -> LightingConfig {
         enabled: true,
         brightness,
         color: color.into(),
+        saturation: 100,
         correction: None,
     }
 }
@@ -150,6 +151,33 @@ fn thor_bgr_targets_do_not_touch_other_leds() {
         assert_eq!(fixture.value(&target, "brightness"), "64");
     }
     assert_eq!(fixture.value("power-led", "brightness"), "unchanged");
+}
+
+#[test]
+fn saturation_is_applied_to_multicolor_output() {
+    let fixture: Fixture = Fixture::new();
+    fixture.target("rgb:l1", "blue green red", "255");
+
+    let output: std::process::Output = fixture
+        .command("multicolor", &["rgb:l1"], None)
+        .args([
+            "set",
+            "--color",
+            "FF0000",
+            "--saturation",
+            "50",
+            "--brightness",
+            "100",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fixture.value("rgb:l1", "multi_intensity"), "55 55 255");
 }
 
 #[test]

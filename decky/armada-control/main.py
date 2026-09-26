@@ -98,8 +98,8 @@ class Plugin:
     async def get_rgb(self):
         return await asyncio.to_thread(get_rgb)
 
-    async def set_rgb(self, enabled, color, brightness):
-        return await asyncio.to_thread(set_rgb, enabled, color, brightness)
+    async def set_rgb(self, enabled, color, saturation, brightness):
+        return await asyncio.to_thread(set_rgb, enabled, color, saturation, brightness)
 
     async def get_controller_state(self):
         return await asyncio.to_thread(controller_state)
