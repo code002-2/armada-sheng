@@ -26,8 +26,8 @@ supported = False
 def check_output(command, **kwargs):
     commands.append(command)
     if command[-1] == "get":
-        return '{"version":1,"enabled":false,"brightness":25,"color":"FFFFFF"}'
-    return '{"version":1,"enabled":true,"brightness":40,"color":"A1B2C3"}'
+        return '{"version":1,"enabled":false,"brightness":25,"color":"FFFFFF","saturation":100}'
+    return '{"version":1,"enabled":true,"brightness":40,"color":"A1B2C3","saturation":50}'
 
 
 def run(command, **kwargs):
@@ -45,6 +45,20 @@ state = control.action_get_rgb({})
 assert state["color"] == "FFFFFF"
 assert commands.pop() == [control.RGB_TOOL, "get"]
 
+state = control.action_set_rgb({"enabled": True, "color": "a1b2c3", "saturation": 50, "brightness": 40})
+assert state["color"] == "A1B2C3"
+assert commands.pop() == [
+    control.RGB_TOOL,
+    "set",
+    "--color",
+    "a1b2c3",
+    "--saturation",
+    "50",
+    "--brightness",
+    "40",
+]
+
+# Legacy callers that omit saturation preserve the saved value in armada-rgb.
 state = control.action_set_rgb({"enabled": True, "color": "a1b2c3", "brightness": 40})
 assert state["color"] == "A1B2C3"
 assert commands.pop() == [
@@ -62,6 +76,7 @@ assert commands.pop() == [control.RGB_TOOL, "off"]
 for request in (
     {"enabled": True, "color": "12345", "brightness": 40},
     {"enabled": True, "color": "FFFFFF", "brightness": 101},
+    {"enabled": True, "color": "FFFFFF", "saturation": 101, "brightness": 40},
 ):
     try:
         control.action_set_rgb(request)
@@ -82,10 +97,10 @@ assert rgb.rgb_supported()
 assert calls.pop() == ("get_rgb", {})
 assert rgb.get_rgb() == {}
 assert calls.pop() == ("get_rgb", {})
-rgb.set_rgb(True, "112233", 50)
+rgb.set_rgb(True, "112233", 75, 50)
 assert calls.pop() == (
     "set_rgb",
-    {"enabled": True, "color": "112233", "brightness": 50},
+    {"enabled": True, "color": "112233", "saturation": 75, "brightness": 50},
 )
 
 paths = list((root / "system_files/usr/lib/armada/devices").rglob("*"))

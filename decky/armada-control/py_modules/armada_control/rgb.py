@@ -12,10 +12,11 @@ def get_rgb():
     return call("get_rgb")
 
 
-def set_rgb(enabled, color, brightness):
+def set_rgb(enabled, color, saturation, brightness):
     return call(
         "set_rgb",
         enabled=enabled,
         color=color,
+        saturation=saturation,
         brightness=brightness,
     )

@@ -11,8 +11,14 @@ pub struct LightingConfig {
     pub enabled: bool,
     pub brightness: u8,
     pub color: String,
+    #[serde(default = "default_saturation")]
+    pub saturation: u8,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub correction: Option<ColorCorrection>,
+}
+
+fn default_saturation() -> u8 {
+    100
 }
 
 impl Default for LightingConfig {
@@ -22,6 +28,7 @@ impl Default for LightingConfig {
             enabled: false,
             brightness: 25,
             color: "FFFFFF".into(),
+            saturation: default_saturation(),
             correction: None,
         }
     }
@@ -34,6 +41,9 @@ impl LightingConfig {
         }
         if self.brightness > 100 {
             bail!("brightness must be between 0 and 100");
+        }
+        if self.saturation > 100 {
+            bail!("saturation must be between 0 and 100");
         }
         if self.color.len() != 6 || !self.color.bytes().all(|c| c.is_ascii_hexdigit()) {
             bail!("color must be six hexadecimal RGB digits");
@@ -65,6 +75,7 @@ mod tests {
         )
         .unwrap();
         assert!(old_config.correction.is_none());
+        assert_eq!(old_config.saturation, 100);
 
         let config: LightingConfig = LightingConfig {
             color: "a1b2c3".into(),
@@ -87,6 +98,12 @@ mod tests {
             ..LightingConfig::default()
         };
         assert!(brightness.validate().is_err());
+
+        let saturation: LightingConfig = LightingConfig {
+            saturation: 101,
+            ..LightingConfig::default()
+        };
+        assert!(saturation.validate().is_err());
 
         let version: LightingConfig = LightingConfig {
             version: 2,

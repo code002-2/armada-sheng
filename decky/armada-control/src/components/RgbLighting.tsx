@@ -75,7 +75,7 @@ export function RgbLighting() {
     const timer: number = window.setTimeout(async () => {
       lastUpdate.current = Date.now();
       try {
-        await setRgb(config.enabled, config.color, config.brightness);
+        await setRgb(config.enabled, config.color, config.saturation, config.brightness);
         savedConfig.current = current;
       } catch (error) {
         toaster.toast({ title: t("rgb.changeError"), body: String(error) });
@@ -114,6 +114,17 @@ export function RgbLighting() {
         showValue={false}
         wrapperClassName="armada-slider-field armada-rgb-hue"
         onChange={(hue: number) => setConfig({ ...config, color: hueColor(hue) })}
+      />
+      <SliderEdit
+        label={t("rgb.saturation")}
+        value={config.saturation}
+        min={0}
+        max={100}
+        step={1}
+        disabled={!config.enabled}
+        showValue={false}
+        wrapperClassName="armada-slider-field armada-rgb-saturation"
+        onChange={(saturation: number) => setConfig({ ...config, saturation })}
       />
     </PanelSection>
   );
