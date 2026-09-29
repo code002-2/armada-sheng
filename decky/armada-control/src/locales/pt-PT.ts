@@ -65,6 +65,8 @@ export const ptPT = {
   "settings.bottomScreenBrightness": "Brilho do ecrã inferior",
   "settings.bottomScreenError": "Não foi possível ativar o ecrã inferior",
   "settings.bottomScreenBrightnessError": "Não foi possível alterar o brilho do ecrã inferior",
+  "settings.chargingFanSpeed": "Ventoinha mín. em carga",
+  "settings.chargingFanSpeedError": "Não foi possível alterar a velocidade da ventoinha a carregar",
   "settings.desktopMode": "Modo de ambiente de trabalho",
   "settings.usbFileTransfer": "Transferência de ficheiros por USB",
   "settings.enabledUntilShutdown": "Ativado até ao próximo reinício",

@@ -32,12 +32,7 @@ EOF
 
 source /ctx/abl/release.env
 abl_releases=/ctx/abl/releases.tsv
-abl_archive=/tmp/rocknix-abl.tar.gz
-curl --connect-timeout 30 --retry 3 -fsSL -o "${abl_archive}" \
-    "https://github.com/ROCKNIX/abl/releases/download/v${ARMADA_ABL_VERSION}/rocknix-abl-v${ARMADA_ABL_VERSION}.tar.gz"
-abl_src=/tmp/rocknix-abl
-mkdir -p "${abl_src}"
-tar -xzf "${abl_archive}" -C "${abl_src}" --strip-components=1
+abl_src=/ctx/abl
 manifest=/usr/lib/armada/abl/manifest
 install -Dpm 0644 /dev/null "${manifest}"
 install -Dpm 0644 "${abl_releases}" /usr/lib/armada/abl/releases.tsv
@@ -72,8 +67,6 @@ for soc in SM8250 SM8550 SM8650 SM8750; do
         "${actual_hash}" \
         >> "${manifest}"
 done
-rm -f "${abl_archive}"
-rm -rf "${abl_src}"
 
 chmod 0755 /usr/libexec/armada/*
 chmod 0755 /usr/libexec/os-session-select
@@ -105,6 +98,7 @@ systemctl enable steamos-manager.service
 systemctl --global enable steamos-manager.service
 systemctl --global enable steamos-manager-session-cleanup.service
 systemctl --global enable armada-steam-default-session.service
+systemctl --global enable armada-steam-charging-eta.service
 systemctl enable armada-bootimg-sync.service
 systemctl enable armada-esp-rename.service
 systemctl enable armada-boot-hotkeys.service

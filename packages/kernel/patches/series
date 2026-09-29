@@ -7,11 +7,14 @@
 0010-msm-resource-cleanup.patch
 0048-drm-msm-dsi-reparent-byte-pixel-src-to-xo-on-disable.patch
 0048a-drm-msm-dsi-round-byte-clock-rate-after-reparenting-to-PLL.patch
+0048b-drm-msm-dsi-fix-pll-init-in-bonded-mode.patch
 0049-drm-msm-dpu-panel-opt-in-8bpc-dither.patch
 0066-drm-msm-dpu-enable-inline-rotation.patch
 0068-drm-msm-dpu-lutdma-dspp-igc-gamut.patch
 0069-dt-bindings-display-msm-dpu-lutdma-reg.patch
 0070-arm64-dts-qcom-dpu-lutdma-reg.patch
+0076-drm-msm-dpu-expose-abgr-xbgr-2101010-on-planes.patch
+0077-drm-msm-dpu-plane-igc-3d-lut-color-pipelines.patch
 0016-rp5-smooth-brightness-adjustment.patch
 0056_Xm-Plus-XM91080G-panel.patch
 0028-drm-panel-Add-panel-driver-for-Chipone-ICNA35XX-base.patch
@@ -76,6 +79,7 @@
 1003-input-haptics-fix-rumble-bridge-atomic-sleep.patch
 1005-input-rsinput-quiesce-the-mcu-across-system-sleep.patch
 1006-tty-serial-qcom-geni-mask-non-console-irq-on-suspend.patch
+1007-input-rsinput-drop-the-mcu-supply-across-system-sleep.patch
 1004-input-haptics-stop-zero-amplitude-immediately.patch
 1300-input-rsinput-axis-deadzone.patch
 0515-input-rsinput-reassemble-uart-frames-instead-of-dropping-them.patch
@@ -105,12 +109,19 @@ v9_20260729_qualcomm_crypto_qce_runtime_pm_interconnect.patch
 0511-scsi-ufs-qcom-reenable-irq-on-host-reset-failure.patch
 0512-PCI-qcom-skip-L23-ready-poll-on-SM8550.patch
 0513-PCI-qcom-honour-an-opp-suspend-opp-as-the-non-s2ram-memory-floor.patch
+0522-PCI-host-common-let-only-endpoints-veto-d3cold.patch
+0523-regulator-qcom-rpmh-add-suspend-state-support.patch
+0524-regulator-core-apply-mem-state-for-s2idle.patch
+0525-regulator-core-log-missing-suspend-configuration-at-debug.patch
+0526-regulator-apply-state-mem-in-s2idle-only-for-opted-in-drivers.patch
 0514-PCI-qcom-honor-iommu-map-cell-count.patch
 0514a-of-property-honor-iommu-cells-in-iommu-map-devlinks.patch
 
 # ============== SM8550 DTSI prerequisites ==============
 0001-pcie-update-sm8550-dtsi.patch
 0520-arm64-dts-qcom-sm8550-add-a-pcie-suspend-opp.patch
+0521-arm64-dts-qcom-sm8750-add-a-pcie-suspend-opp.patch
+0527-arm64-dts-qcom-sm8650-add-a-pcie-suspend-opp.patch
 0120-20250728_konradybcio_gpu_cc_power_requirements_reality_check.patch
 0121-pmdomain-qcom-rpmhpd-presync-floor-gmu-rails.patch
 0122-interconnect__qcom__sm8550__Enable_QoS_configuration.patch
@@ -125,6 +136,7 @@ v9_20260729_qualcomm_crypto_qce_runtime_pm_interconnect.patch
 0503-ROCKNIX-battery-name.patch
 0901-power-supply-qcom-battmgr-fix-charge-unit.patch
 0902-power-supply-qcom-battmgr-expose-charge-now.patch
+0903-power-supply-qcom-battmgr-expose-the-charge-current-limit.patch
 
 # ============== SM8650 (AYANEO Pocket S2, KONKR Pocket FIT) ==============
 0001-pcie-update-sm8650-dtsi.patch
@@ -187,3 +199,7 @@ v2_20260420_neil_armstrong_arm64_qcom_sm8650_misc_enhancements.patch
 0075-ASoC-wsa884x-preserve-Pocket-S2-compander-gain.patch
 0612-ROCKNIX-odin3-q6apm-start-mi2s-port-at-prepare.patch
 0613-ASoC-q6apm-scope-prepare-start-to-MI2S.patch
+0528-ASoC-qcom-sc8280xp-suspend-the-card-and-its-streams.patch
+0529-ASoC-qdsp6-q6apm-fail-the-graph-open-when-the-DSP-rejects-it.patch
+0530-ASoC-qdsp6-release-AudioReach-graphs-across-system-suspend.patch
+0532-hwmon-pwm-fan-optionally-run-the-fan-while-charging-in-s2idle.patch

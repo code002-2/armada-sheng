@@ -1,5 +1,5 @@
 From: Armada <noreply@armada.local>
-Subject: [PATCH] arm64: dts: qcom: cq8725s: configure the Odin 3 gamepad and DP audio
+Subject: [PATCH] arm64: dts: qcom: cq8725s: configure the Odin 3 gamepad and DP audio, fix PCIe WAKE# polarity
 
 --- a/arch/arm64/boot/dts/qcom/cq8725s-ayn-common.dtsi
 +++ b/arch/arm64/boot/dts/qcom/cq8725s-ayn-common.dtsi
@@ -11,8 +11,7 @@ Subject: [PATCH] arm64: dts: qcom: cq8725s: configure the Odin 3 gamepad and DP 
  		};
  	};
  
-@@ -182,8 +182,24 @@
- 			platform {
+@@ -183,6 +182,22 @@
  				sound-dai = <&q6apm>;
  			};
  		};
@@ -35,8 +34,16 @@ Subject: [PATCH] arm64: dts: qcom: cq8725s: configure the Odin 3 gamepad and DP 
  	};
  
  	pmic-glink {
- 		compatible = "qcom,sm8750-pmic-glink",
-@@ -1390,6 +1390,8 @@
+@@ -982,7 +997,7 @@
+ };
+ 
+ &pcieport0 {
+-	wake-gpios = <&tlmm 104 GPIO_ACTIVE_HIGH>;
++	wake-gpios = <&tlmm 104 GPIO_ACTIVE_LOW>;
+ 	reset-gpios = <&tlmm 102 GPIO_ACTIVE_LOW>;
+ 
+ 	wifi@0 {
+@@ -1390,6 +1405,8 @@
  
  	gamepad {
  		compatible = "gamepad,rsinput";

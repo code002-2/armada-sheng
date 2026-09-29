@@ -42,6 +42,7 @@ dnf5 -y install --setopt=install_weak_deps=False \
     unzip \
     fuse \
     fuse-libs \
+    libxcrypt-compat \
     sdl2-compat \
     evtest \
     dbus-x11 \

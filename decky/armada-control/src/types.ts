@@ -129,6 +129,7 @@ export interface Config {
   bottomScreenBrightnessSupported: boolean;
   bottomScreenActive: boolean;
   bottomScreenBrightness: number;
+  chargingFanPwm: number;
   sshEnabled: boolean;
   mtpEnabled: boolean;
   desktopMode: string;
