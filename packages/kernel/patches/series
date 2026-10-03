@@ -132,6 +132,7 @@ v9_20260729_qualcomm_crypto_qce_runtime_pm_interconnect.patch
 
 # ============== WiFi ==============
 1020-wifi-ath12k-send-the-computed-scan-priority-to-the-f.patch
+1021-wifi-ath12k-convert-scan-timeout-to-wiphy-delayed-work.patch
 
 # ============== System tweaks ==============
 0500-ROCKNIX-set-boot-fanspeed.patch
