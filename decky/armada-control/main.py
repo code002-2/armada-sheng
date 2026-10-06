@@ -25,6 +25,7 @@ from armada_control.system import (
     set_sleep_mode,
     set_sleep_logs_enabled,
     set_ssh_enabled,
+    set_swipe_gestures_enabled,
 )
 from armada_control.tweaks import load_compat_applied, save_compat_applied, save_tweaks
 from armada_control.fan_curves import get_state as get_fans_state, save_all as save_fan_curves, save_charging_pwm
@@ -55,6 +56,9 @@ class Plugin:
 
     async def save_compat_applied(self, appids, proton_default=None):
         return await asyncio.to_thread(save_compat_applied, appids, proton_default)
+
+    async def set_swipe_gestures_enabled(self, enabled):
+        return await asyncio.to_thread(set_swipe_gestures_enabled, enabled)
 
     async def set_ssh_enabled(self, enabled):
         return await asyncio.to_thread(set_ssh_enabled, enabled)
@@ -98,8 +102,16 @@ class Plugin:
     async def get_rgb(self):
         return await asyncio.to_thread(get_rgb)
 
-    async def set_rgb(self, enabled, color, saturation, brightness):
-        return await asyncio.to_thread(set_rgb, enabled, color, saturation, brightness)
+    async def set_rgb(self, enabled, link_brightness, color, saturation, max_brightness, brightness):
+        return await asyncio.to_thread(
+            set_rgb,
+            enabled,
+            link_brightness,
+            color,
+            saturation,
+            max_brightness,
+            brightness,
+        )
 
     async def get_controller_state(self):
         return await asyncio.to_thread(controller_state)

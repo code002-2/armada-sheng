@@ -92,6 +92,8 @@ export interface CalibrationState {
 export interface RgbConfig {
   version: number;
   enabled: boolean;
+  linkBrightness: boolean;
+  maxBrightness: number;
   brightness: number;
   color: string;
   saturation: number;
@@ -131,6 +133,7 @@ export interface Config {
   bottomScreenBrightness: number;
   chargingFanPwm: number;
   sshEnabled: boolean;
+  swipeGesturesEnabled: boolean;
   mtpEnabled: boolean;
   desktopMode: string;
   desktopModes: DropdownChoice[];
