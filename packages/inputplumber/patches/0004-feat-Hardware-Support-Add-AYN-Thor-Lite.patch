@@ -4,16 +4,15 @@ Date: Sun, 13 Sep 2026 08:17:52 +1000
 Subject: [PATCH] feat(Hardware Support): Add AYN Thor Lite
 
 ---
- .../devices/50-ayn_thor_lite.yaml             | 27 +++++++++++++++++++
- 1 file changed, 27 insertions(+)
+ .../devices/50-ayn_thor_lite.yaml             | 33 ++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
  create mode 100644 rootfs/usr/share/inputplumber/devices/50-ayn_thor_lite.yaml
 
 diff --git a/rootfs/usr/share/inputplumber/devices/50-ayn_thor_lite.yaml b/rootfs/usr/share/inputplumber/devices/50-ayn_thor_lite.yaml
 new file mode 100644
-index 0000000..93f45c9
 --- /dev/null
 +++ b/rootfs/usr/share/inputplumber/devices/50-ayn_thor_lite.yaml
-@@ -0,0 +1,27 @@
+@@ -0,0 +1,33 @@
 +# yaml-language-server: $schema=https://raw.githubusercontent.com/ShadowBlip/InputPlumber/main/rootfs/usr/share/inputplumber/schema/composite_device_v1.json
 +version: 1
 +kind: CompositeDevice
@@ -37,6 +36,12 @@ index 0000000..93f45c9
 +      phys_path: retroid-pocket-gamepad/input0
 +      vendor_id: "2020"
 +      product_id: "3001"
++      handler: event*
++
++  - group: gamepad
++    capability_map_id: ayn2
++    evdev:
++      name: gpio-keys-ayn
 +      handler: event*
 +
 +target_devices:
