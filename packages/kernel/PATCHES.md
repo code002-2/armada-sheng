@@ -204,6 +204,9 @@ no equivalent submission was found, or a permanent URL to the upstream submissio
 - `patches/0060_Mangmi-Pocket-Max-SPI-joypad.patch`
   source: https://github.com/ROCKNIX/distribution/blob/807c74fc46c124891d8aa9b57a68533d38e9a6b2/projects/ROCKNIX/devices/SM8250/patches/linux/0060_Mangmi-Pocket-Max-SPI-joypad.patch
   upstream: unknown
+- `patches/0060b-input-mangmi-pocket-max-keep-trigger-conversion-independent-of-calibration.patch`
+  source: armada
+  upstream: local
 - `patches/0031_input--Add-driver-for-RSInput-Gamepad.patch`
   source: https://github.com/ROCKNIX/distribution/blob/bcf3b5bc574990b96543484575b06f912153a715/projects/ROCKNIX/devices/SM8550/patches/linux/0031_input--Add-driver-for-RSInput-Gamepad.patch
   upstream: unknown
@@ -254,6 +257,10 @@ no equivalent submission was found, or a permanent URL to the upstream submissio
 - `patches/1006-tty-serial-qcom-geni-mask-non-console-irq-on-suspend.patch`
   source: https://github.com/thorch-os/thorch/blob/2614a262d7de3f31bd47a0c92981461146663847/packages/linux-thorch/patches/0010-tty-serial-qcom-geni-mask-non-console-irq-on-suspend.patch
   upstream: unknown
+- `patches/0534-serial-qcom-geni-add-force-suspend-resume-to-system-sleep-callbacks.patch`
+  source: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d0cd9c8d0fd59bc7d140f3d60cf02e1d80376dab
+  upstream: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d0cd9c8d0fd59bc7d140f3d60cf02e1d80376dab
+  notes: Backported to Linux 7.2 on top of 1006, re-enabling the masked IRQ when the force suspend or force resume fails.
 - `patches/1007-input-rsinput-drop-the-mcu-supply-across-system-sleep.patch`
   source: armada
   upstream: local
@@ -317,6 +324,15 @@ no equivalent submission was found, or a permanent URL to the upstream submissio
 - `patches/0511-scsi-ufs-qcom-reenable-irq-on-host-reset-failure.patch`
   source: armada
   upstream: local
+- `patches/0533-scsi-ufs-ufs-qcom-enable-only-lane-clocks-in-lane-clock-apis.patch`
+  source: https://git.kernel.org/pub/scm/linux/kernel/git/mkp/scsi.git/commit/?id=f07317a8d57f382ec505597816271dd72ffa20c7
+  upstream: https://git.kernel.org/pub/scm/linux/kernel/git/mkp/scsi.git/commit/?id=f07317a8d57f382ec505597816271dd72ffa20c7
+- `patches/0535-scsi-ufs-core-fast-abort-unsupported-query-idns.patch`
+  source: https://git.kernel.org/pub/scm/linux/kernel/git/mkp/scsi.git/commit/?id=d1fa5cea5dcd72a9ec21b835c572a28c0c3f4fbf
+  upstream: https://git.kernel.org/pub/scm/linux/kernel/git/mkp/scsi.git/commit/?id=d1fa5cea5dcd72a9ec21b835c572a28c0c3f4fbf
+- `patches/0536-scsi-ufs-core-dynamically-disable-timestamp-on-unsupported-devices.patch`
+  source: https://git.kernel.org/pub/scm/linux/kernel/git/mkp/scsi.git/commit/?id=00eec343c7306be7f1103f5002abd77496937ff9
+  upstream: https://git.kernel.org/pub/scm/linux/kernel/git/mkp/scsi.git/commit/?id=00eec343c7306be7f1103f5002abd77496937ff9
 - `patches/0512-PCI-qcom-skip-L23-ready-poll-on-SM8550.patch`
   source: armada
   upstream: local
@@ -459,6 +475,9 @@ no equivalent submission was found, or a permanent URL to the upstream submissio
 - `patches/0013-add-force-feedback.patch`
   source: https://github.com/ROCKNIX/distribution/blob/bcf3b5bc574990b96543484575b06f912153a715/projects/ROCKNIX/devices/SM8250/patches/linux/0013-add-force-feedback.patch
   upstream: unknown
+- `patches/0008a-input-retroid-keep-trigger-conversion-independent-of-calibration.patch`
+  source: armada
+  upstream: local
 - `patches/0063_Mangmi-Pocket-Max-HL7139-charge-pump.patch`
   source: https://github.com/ROCKNIX/distribution/blob/807c74fc46c124891d8aa9b57a68533d38e9a6b2/projects/ROCKNIX/devices/SM8250/patches/linux/0063_Mangmi-Pocket-Max-HL7139-charge-pump.patch
   upstream: unknown
@@ -619,6 +638,9 @@ no equivalent submission was found, or a permanent URL to the upstream submissio
   source: armada
   upstream: local
 - `patches/0532-hwmon-pwm-fan-optionally-run-the-fan-while-charging-in-s2idle.patch`
+  source: armada
+  upstream: local
+- `patches/0540-arm64-signal-reapply-the-ssbs-policy-on-sigreturn.patch`
   source: armada
   upstream: local
 - `patches/0618-drm-msm-dp-dont-fail-audio-prepare-when-display-off.patch`
