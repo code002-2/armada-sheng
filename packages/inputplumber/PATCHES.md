@@ -11,3 +11,5 @@ to a commit, or `armada` if it's original; a URL source with no `notes` is verba
 - `patches/0003-feat-Hardware-Support-Add-AYN-Thor-Lite.patch`
   source: https://github.com/ShadowBlip/InputPlumber/pull/746
   notes: AYN Thor Lite support
+- `patches/0004-fix-AyaneoHaptics-sleep-between-polls.patch`
+  source: armada
